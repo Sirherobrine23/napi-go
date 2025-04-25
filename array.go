@@ -15,7 +15,16 @@ func CreateArray(env EnvType) (*Array, error) {
 		return nil, err
 	}
 
-	return &Array{value: FromValueNapi(env, value)}, nil
+	return &Array{FromValueNapi(env, value)}, nil
+}
+
+func CreateArrayWithLength(env EnvType, size int) (*Array, error) {
+	value, err := napi.MustValueErr(napi.CreateArrayWithLength(env.NapiValue(), size))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Array{FromValueNapi(env, value)}, nil
 }
 
 func (arr *Array) Length() (int, error) {
@@ -53,10 +62,14 @@ func (arr *Array) Delete(index int) (bool, error) {
 	return napi.MustValueErr(napi.DeleteElement(arr.NapiEnv(), arr.NapiValue(), index))
 }
 
-func (arr *Array) Append(value ValueType) error {
+func (arr *Array) Append(value ...ValueType) error {
 	index, err := napi.MustValueErr(napi.GetArrayLength(arr.NapiEnv(), arr.NapiValue()))
 	if err == nil {
-		err = arr.Set(index, value)
+		for valueIndex := range value {
+			if err = arr.Set(index+valueIndex, value[valueIndex]); err != nil {
+				break
+			}
+		}
 	}
 	return err
 }

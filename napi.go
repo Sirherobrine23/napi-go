@@ -36,7 +36,7 @@ type (
 	EnvType interface {
 		NapiValue() napi.Env // Primitive value to NAPI call
 		Global() *Object
-		Undefined() ValueType
+		MustUndefined() ValueType
 		Null() ValueType
 	}
 
@@ -61,7 +61,7 @@ func (e *Env) Global() *Object {
 	return &Object{FromValueNapi(e, napi.MustValue(napi.GetGlobal(e.env)))}
 }
 
-func (e *Env) Undefined() ValueType {
+func (e *Env) MustUndefined() ValueType {
 	return FromValueNapi(e, napi.MustValue(napi.GetUndefined(e.env)))
 }
 

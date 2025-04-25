@@ -8,6 +8,14 @@ import (
 
 type Object struct{ value }
 
+func CreateObject(env EnvType) (*Object, error) {
+	value, err := napi.MustValueErr(napi.CreateObject(env.NapiValue()))
+	if err != nil {
+		return nil, err
+	}
+	return &Object{FromValueNapi(env, value)}, nil
+}
+
 func (obj *Object) Has(name string) bool {
 	if exist, status := napi.HasNamedProperty(obj.Env().NapiValue(), obj.NapiValue(), name); status == napi.StatusOK {
 		return exist

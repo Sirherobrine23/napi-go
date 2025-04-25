@@ -7,12 +7,14 @@ type (
 	Callback func(env EnvType, this ValueType, args []ValueType) (ValueType, error)
 )
 
+func FunctionFromValue(env EnvType, v napi.Value) *Function { return &Function{FromValueNapi(env, v)} }
+
 func CreateFunction(env EnvType, name string, callback Callback) (*Function, error) {
 	fnCall, err := napi.MustValueErr(napi.CreateFunction(env.NapiValue(), name, func(env napi.Env, info napi.CallbackInfo) napi.Value {
 		Env := FromEnvNapi(env)
 		this, args, err := ReturnValuesFromCallback(env, info)
 		if err != nil {
-			return Env.Undefined().NapiValue()
+			return Env.MustUndefined().NapiValue()
 		}
 
 		res, err := callback(FromEnvNapi(env), this, args)
@@ -22,7 +24,7 @@ func CreateFunction(env EnvType, name string, callback Callback) (*Function, err
 				errMsg.ThrowAsJavaScriptException()
 				return nil
 			}
-			return Env.Undefined().NapiValue()
+			return Env.MustUndefined().NapiValue()
 		}
 		return res.NapiValue()
 	}))
@@ -68,7 +70,7 @@ func (fn *Function) CallRecvArgs(recv ValueType, args ...ValueType) (ValueType, 
 }
 
 func (fn *Function) Call(args ...ValueType) (ValueType, error) {
-	return fn.CallRecvArgs(fn.Env().Undefined(), args...)
+	return fn.CallRecvArgs(fn.Env().MustUndefined(), args...)
 }
 
 func ReturnValuesFromCallback(env napi.Env, info napi.CallbackInfo) (this ValueType, args []ValueType, err error) {

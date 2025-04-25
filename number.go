@@ -4,10 +4,18 @@ import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 
 type Number struct{ value }
 
-func CreateNumber[T int32 | uint32 | int64 | float64](env EnvType, n T) (*Number, error) {
+func CreateNumber[T int | uint | int32 | uint32 | int64 | uint64 | float32 | float64](env EnvType, n T) (*Number, error) {
 	var value napi.Value
 	var err error
 	switch v := any(n).(type) {
+	case int:
+		if value, err = napi.MustValueErr(napi.CreateInt64(env.NapiValue(), int64(v))); err != nil {
+			return nil, err
+		}
+	case uint:
+		if value, err = napi.MustValueErr(napi.CreateInt64(env.NapiValue(), int64(v))); err != nil {
+			return nil, err
+		}
 	case int32:
 		if value, err = napi.MustValueErr(napi.CreateInt32(env.NapiValue(), v)); err != nil {
 			return nil, err
@@ -18,6 +26,14 @@ func CreateNumber[T int32 | uint32 | int64 | float64](env EnvType, n T) (*Number
 		}
 	case int64:
 		if value, err = napi.MustValueErr(napi.CreateInt64(env.NapiValue(), v)); err != nil {
+			return nil, err
+		}
+	case uint64:
+		if value, err = napi.MustValueErr(napi.CreateInt64(env.NapiValue(), int64(v))); err != nil {
+			return nil, err
+		}
+	case float32:
+		if value, err = napi.MustValueErr(napi.CreateDouble(env.NapiValue(), float64(v))); err != nil {
 			return nil, err
 		}
 	case float64:
