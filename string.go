@@ -2,41 +2,26 @@ package napi
 
 import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 
-type String struct{ *Value }
+type String struct{ value }
 
-func FromValue(value *Value) *String { return &String{Value: value} }
+func FromValue(value ValueType) *String { return &String{value: value} }
 
-func MustCreateString(env *Env, value string) *String {
-	napiValue, status := napi.CreateStringUtf8(env.env, value)
-	if status != napi.StatusOK {
-		panic(napi.StatusError(status))
+func CreateString(env EnvType, value string) (*String, error) {
+	napiValue, err := napi.MustValueErr(napi.CreateStringUtf8(env.NapiValue(), value))
+	if err != nil {
+		return nil, err
 	}
-	return &String{
-		Value: &Value{
-			env:     env,
-			typeof:  napi.ValueTypeString,
-			valueOf: napiValue,
-		},
-	}
+	return &String{value: FromValueNapi(env, napiValue)}, nil
 }
 
-func CreateString(env *Env, value string) (*String, error) {
-	napiValue, status := napi.CreateStringUtf8(env.env, value)
-	if status != napi.StatusOK {
-		return nil, napi.StatusError(status)
+func MustCreateString(env EnvType, value string) *String {
+	valueType, err := CreateString(env, value)
+	if err != nil {
+		panic(err)
 	}
-	return &String{
-		Value: &Value{
-			env:     env,
-			typeof:  napi.ValueTypeString,
-			valueOf: napiValue,
-		},
-	}, nil
+	return valueType
 }
 
 func (str *String) String() string {
-	if str != nil {
-		return napi.MustValue(napi.GetValueStringUtf8(str.NapiEnv(), str.valueOf))
-	}
-	return ""
+	return napi.MustValue(napi.GetValueStringUtf8(str.NapiEnv(), str.NapiValue()))
 }

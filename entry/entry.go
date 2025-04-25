@@ -11,8 +11,8 @@ package entry
 #cgo darwin LDFLAGS: -Wl,-undefined,dynamic_lookup
 #cgo darwin LDFLAGS: -Wl,-no_pie
 #cgo darwin LDFLAGS: -Wl,-search_paths_first
-// #cgo darwin amd64 LDFLAGS: -arch x86_64
-// #cgo darwin arm64 LDFLAGS: -arch arm64
+#cgo (darwin && amd64) LDFLAGS: -arch x86_64
+#cgo (darwin && arm64) LDFLAGS: -arch arm64
 
 #cgo linux LDFLAGS: -Wl,-unresolved-symbols=ignore-all
 
@@ -41,15 +41,10 @@ func initializeModule(cEnv C.napi_env, cExports C.napi_value) C.napi_value {
 		registerCall(env, exports)
 	}
 
-	// for name, functionCall := range modFuncInit {
-	// 	cb, _ := napi.CreateFunction(env, name, functionCall)
-	// 	name, _ := napi.CreateStringUtf8(env, name)
-	// 	napi.SetProperty(env, exports, name, cb)
-	// }
 	return cExports
 }
 
-func Register(fn func(*gonapi.Env, *gonapi.Object)) {
+func Register(fn func(gonapi.EnvType, *gonapi.Object)) {
 	modFuncInit = append(modFuncInit, func(env napi.Env, object napi.Value) {
 		registerEnv := gonapi.FromEnvNapi(env)
 		registerObj := gonapi.FromValueNapi(registerEnv, object).ToObject()

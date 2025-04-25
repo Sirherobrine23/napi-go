@@ -6,25 +6,18 @@ import (
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
-type Date struct{ *Value }
+type Date struct{ value }
 
-func CreateDate(env *Env, date time.Time) (*Date, error) {
+func CreateDate(env EnvType, date time.Time) (*Date, error) {
 	value, err := napi.MustValueErr(napi.CreateDate(env.NapiValue(), float64(date.UnixMilli())))
 	if err != nil {
 		return nil, err
 	}
-
-	return &Date{
-		Value: &Value{
-			env:     env,
-			valueOf: value,
-			typeof:  napi.MustValue(napi.Typeof(env.NapiValue(), value)),
-		},
-	}, nil
+	return &Date{value: &Value{env: env, valueOf: value}}, nil
 }
 
 func (d Date) ValueOf() (float64, error) {
-	return napi.MustValueErr(napi.GetDateValue(d.env.env, d.Value.valueOf))
+	return napi.MustValueErr(napi.GetDateValue(d.NapiEnv(), d.NapiValue()))
 }
 
 func (d Date) Time() (time.Time, error) {

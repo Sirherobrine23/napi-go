@@ -2,9 +2,9 @@ package napi
 
 import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 
-type Bigint struct{ *Value }
+type Bigint struct{ value }
 
-func CreateBigint[T int64 | uint64](env *Env, valueOf T) (*Bigint, error) {
+func CreateBigint[T int64 | uint64](env EnvType, valueOf T) (*Bigint, error) {
 	var value napi.Value
 	var err error
 	switch v := any(valueOf).(type) {
@@ -18,13 +18,7 @@ func CreateBigint[T int64 | uint64](env *Env, valueOf T) (*Bigint, error) {
 		}
 	}
 
-	return &Bigint{
-		Value: &Value{
-			env:     env,
-			typeof:  napi.ValueTypeBigint,
-			valueOf: value,
-		},
-	}, nil
+	return &Bigint{value: &Value{env: env, valueOf: value}}, nil
 }
 
 func (big *Bigint) GetInt64() (int64, error) {

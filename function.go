@@ -3,11 +3,11 @@ package napi
 import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 
 type (
-	Function     struct{ *Value }
-	Callback func(env *Env, this *Value, args []*Value) (*Value, error)
+	Function struct{ value }
+	Callback func(env EnvType, this ValueType, args []ValueType) (ValueType, error)
 )
 
-func CreateFunction(env *Env, name string, callback Callback) (*Function, error) {
+func CreateFunction(env EnvType, name string, callback Callback) (*Function, error) {
 	fnCall, err := napi.MustValueErr(napi.CreateFunction(env.NapiValue(), name, func(env napi.Env, info napi.CallbackInfo) napi.Value {
 		Env := FromEnvNapi(env)
 		this, args, err := ReturnValuesFromCallback(env, info)
@@ -30,28 +30,18 @@ func CreateFunction(env *Env, name string, callback Callback) (*Function, error)
 		return nil, err
 	}
 
-	return &Function{
-		Value: &Value{
-			env:     env,
-			typeof:  napi.ValueTypeFunction,
-			valueOf: fnCall,
-		},
-	}, nil
+	return &Function{FromValueNapi(env, fnCall)}, nil
 }
 
-func (fn *Function) internalCall(Argc int, Recv *Value, Argv []napi.Value) (*Value, error) {
+func (fn *Function) internalCall(Argc int, Recv ValueType, Argv []napi.Value) (ValueType, error) {
 	res, err := napi.MustValueErr(napi.CallFunction(fn.NapiEnv(), Recv.NapiValue(), fn.NapiValue(), Argc, Argv))
 	if err != nil {
 		return nil, err
 	}
-	return &Value{
-		env:     fn.env,
-		valueOf: res,
-		typeof:  napi.MustValue(napi.Typeof(fn.NapiEnv(), res)),
-	}, nil
+	return FromValueNapi(fn.Env(), res), nil
 }
 
-func (fn *Function) CallArgc(Argc int, Recv *Value, Argv ...*Value) (*Value, error) {
+func (fn *Function) CallArgc(Argc int, Recv ValueType, Argv ...ValueType) (ValueType, error) {
 	var napiArgv []napi.Value
 	for index := range Argc {
 		napiArgv = append(napiArgv, Argv[index].NapiValue())
@@ -59,7 +49,7 @@ func (fn *Function) CallArgc(Argc int, Recv *Value, Argv ...*Value) (*Value, err
 	return fn.internalCall(Argc, Recv, napiArgv)
 }
 
-func (fn *Function) CallRecvArgs(recv *Value, args ...*Value) (*Value, error) {
+func (fn *Function) CallRecvArgs(recv ValueType, args ...ValueType) (ValueType, error) {
 	argc := len(args)
 	stackArgsCount := 6
 	stackArgs := make([]napi.Value, stackArgsCount)
@@ -77,21 +67,21 @@ func (fn *Function) CallRecvArgs(recv *Value, args ...*Value) (*Value, error) {
 	return fn.internalCall(argc, recv, argv)
 }
 
-func (fn *Function) Call(args ...*Value) (*Value, error) {
-	return fn.CallRecvArgs(fn.env.Undefined(), args...)
+func (fn *Function) Call(args ...ValueType) (ValueType, error) {
+	return fn.CallRecvArgs(fn.Env().Undefined(), args...)
 }
 
-func ReturnValuesFromCallback(env napi.Env, info napi.CallbackInfo) (this *Value, args []*Value, err error) {
+func ReturnValuesFromCallback(env napi.Env, info napi.CallbackInfo) (this ValueType, args []ValueType, err error) {
 	var cbInfo napi.GetCbInfoResult
 	if cbInfo, err = napi.MustValueErr(napi.GetCbInfo(env, info)); err != nil {
 		return nil, nil, err
 	}
 
 	valueEnv := FromEnvNapi(env)
-	this = &Value{env: valueEnv, valueOf: cbInfo.This, typeof: napi.MustValue(napi.Typeof(env, cbInfo.This))}
-	args = make([]*Value, len(cbInfo.Args))
+	this = &Value{env: valueEnv, valueOf: cbInfo.This}
+	args = make([]ValueType, len(cbInfo.Args))
 	for i, cbArg := range cbInfo.Args {
-		args[i] = &Value{env: valueEnv, valueOf: cbArg, typeof: napi.MustValue(napi.Typeof(env, cbArg))}
+		args[i] = &Value{env: valueEnv, valueOf: cbArg}
 	}
 	return
 }

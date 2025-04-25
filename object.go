@@ -6,41 +6,41 @@ import (
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
-type Object struct{ *Value }
+type Object struct{ value }
 
 func (obj *Object) Has(name string) bool {
-	if exist, status := napi.HasNamedProperty(obj.env.NapiValue(), obj.NapiValue(), name); status == napi.StatusOK {
+	if exist, status := napi.HasNamedProperty(obj.Env().NapiValue(), obj.NapiValue(), name); status == napi.StatusOK {
 		return exist
 	}
 	return false
 }
 
 func (obj *Object) HasOwnProperty(name string) bool {
-	v, err := CreateString(obj.env, name)
+	v, err := CreateString(obj.Env(), name)
 	if err != nil {
 		return false
 	}
 
-	if exist, status := napi.HasOwnProperty(obj.env.NapiValue(), obj.NapiValue(), v.NapiValue()); status == napi.StatusOK {
+	if exist, status := napi.HasOwnProperty(obj.Env().NapiValue(), obj.NapiValue(), v.NapiValue()); status == napi.StatusOK {
 		return exist
 	}
 	return false
 }
 
-func (obj *Object) Set(name string, value *Value) error {
-	if status := napi.SetNamedProperty(obj.env.NapiValue(), obj.NapiValue(), name, value.NapiValue()); status != napi.StatusOK {
+func (obj *Object) Set(name string, value ValueType) error {
+	if status := napi.SetNamedProperty(obj.Env().NapiValue(), obj.NapiValue(), name, value.NapiValue()); status != napi.StatusOK {
 		return napi.StatusError(status)
 	}
 	return nil
 }
 
 func (obj *Object) Delete(name string) error {
-	v, err := CreateString(obj.env, name)
+	v, err := CreateString(obj.Env(), name)
 	if err != nil {
 		return err
 	}
 
-	_, status := napi.DeleteProperty(obj.env.NapiValue(), obj.NapiValue(), v.NapiValue())
+	_, status := napi.DeleteProperty(obj.Env().NapiValue(), obj.NapiValue(), v.NapiValue())
 	if status != napi.StatusOK {
 		return napi.StatusError(status)
 	}
@@ -49,11 +49,11 @@ func (obj *Object) Delete(name string) error {
 }
 
 func (obj *Object) GetPropertyNames() (*Array, error) {
-	array, status := napi.GetPropertyNames(obj.env.NapiValue(), obj.NapiValue())
-	if status != napi.StatusOK {
-		return nil, napi.StatusError(status)
+	array, err := napi.MustValueErr(napi.GetPropertyNames(obj.Env().NapiValue(), obj.NapiValue()))
+	if err != nil {
+		return nil, err
 	}
-	return &Array{Value: &Value{env: obj.env, typeof: 0, valueOf: array}}, nil
+	return &Array{FromValueNapi(obj.Env(), array)}, nil
 }
 
 func (obj *Object) SeqGetPropertyNames() iter.Seq2[string, error] {
@@ -72,17 +72,17 @@ func (obj *Object) SeqGetPropertyNames() iter.Seq2[string, error] {
 	}
 }
 
-func (obj *Object) Seq() iter.Seq2[string, *Value] {
+func (obj *Object) Seq() iter.Seq2[string, ValueType] {
 	arr, err := obj.GetPropertyNames()
 	if err != nil {
 		return nil
 	}
 
-	return func(yield func(string, *Value) bool) {
+	return func(yield func(string, ValueType) bool) {
 		for nameValue := range arr.Seq() {
 			name := nameValue.ToString().String()
 			value := napi.MustValue(napi.GetNamedProperty(arr.NapiEnv(), arr.NapiValue(), name))
-			if !yield(name, &Value{env: obj.env, valueOf: value}) {
+			if !yield(name, &Value{env: obj.Env(), valueOf: value}) {
 				return
 			}
 		}

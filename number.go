@@ -2,9 +2,9 @@ package napi
 
 import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 
-type Number struct{ *Value }
+type Number struct{ value }
 
-func CreateNumber[T int32 | uint32 | int64 | float64](env *Env, n T) (*Number, error) {
+func CreateNumber[T int32 | uint32 | int64 | float64](env EnvType, n T) (*Number, error) {
 	var value napi.Value
 	var err error
 	switch v := any(n).(type) {
@@ -26,13 +26,7 @@ func CreateNumber[T int32 | uint32 | int64 | float64](env *Env, n T) (*Number, e
 		}
 	}
 
-	return &Number{
-		Value: &Value{
-			env:     env,
-			valueOf: value,
-			typeof:  napi.ValueTypeNumber,
-		},
-	}, err
+	return &Number{value: FromValueNapi(env, value)}, err
 }
 
 func (num *Number) Int64() (int64, error) {

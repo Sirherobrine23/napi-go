@@ -7,29 +7,23 @@ import (
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
-type Array struct{ *Value }
+type Array struct{ value }
 
-func CreateArray(env *Env) (*Array, error) {
+func CreateArray(env EnvType) (*Array, error) {
 	value, err := napi.MustValueErr(napi.CreateArray(env.NapiValue()))
 	if err != nil {
 		return nil, err
 	}
 
-	return &Array{
-		Value: &Value{
-			env:     env,
-			valueOf: value,
-			typeof:  napi.MustValue(napi.Typeof(env.NapiValue(), value)),
-		},
-	}, nil
+	return &Array{value: FromValueNapi(env, value)}, nil
 }
 
 func (arr *Array) Length() (int, error) {
 	return napi.MustValueErr(napi.GetArrayLength(arr.NapiEnv(), arr.NapiValue()))
 }
 
-func (arr *Array) Seq() iter.Seq[*Value] {
-	return func(yield func(*Value) bool) {
+func (arr *Array) Seq() iter.Seq[ValueType] {
+	return func(yield func(ValueType) bool) {
 		for index := range napi.MustValue(napi.GetArrayLength(arr.NapiEnv(), arr.NapiValue())) {
 			value, err := arr.Get(index)
 			if err != nil {
@@ -41,36 +35,28 @@ func (arr *Array) Seq() iter.Seq[*Value] {
 	}
 }
 
-func (arr *Array) Values() []*Value { return slices.Collect(arr.Seq()) }
+func (arr *Array) Values() []ValueType { return slices.Collect(arr.Seq()) }
 
-func (arr *Array) Get(index int) (*Value, error) {
+func (arr *Array) Get(index int) (ValueType, error) {
 	value, err := napi.MustValueErr(napi.GetElement(arr.NapiEnv(), arr.NapiValue(), index))
 	if err != nil {
 		return nil, err
 	}
-	return &Value{
-		env:     arr.env,
-		valueOf: value,
-		typeof:  napi.MustValue(napi.Typeof(arr.NapiEnv(), value)),
-	}, nil
+	return FromValueNapi(arr.Env(), value), nil
 }
 
-func (arr *Array) Set(index int, value *Value) error {
-	status := napi.SetElement(arr.NapiEnv(), arr.NapiValue(), index, value.NapiValue())
-	if status != napi.StatusOK {
-		return napi.StatusError(status)
-	}
-	return nil
+func (arr *Array) Set(index int, value ValueType) error {
+	return napi.SingleMustValueErr(napi.SetElement(arr.NapiEnv(), arr.NapiValue(), index, value.NapiValue()))
 }
 
 func (arr *Array) Delete(index int) (bool, error) {
 	return napi.MustValueErr(napi.DeleteElement(arr.NapiEnv(), arr.NapiValue(), index))
 }
 
-func (arr *Array) Append(value *Value) error {
+func (arr *Array) Append(value ValueType) error {
 	index, err := napi.MustValueErr(napi.GetArrayLength(arr.NapiEnv(), arr.NapiValue()))
-	if err != nil {
-		return err
+	if err == nil {
+		err = arr.Set(index, value)
 	}
-	return arr.Set(index, value)
+	return err
 }

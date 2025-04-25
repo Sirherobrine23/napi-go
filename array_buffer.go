@@ -6,9 +6,9 @@ import (
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
-type ArrayBuffer struct{ *Value }
+type ArrayBuffer struct{ value }
 
-func CreateArrayBuffer(env *Env, buff []byte) (*ArrayBuffer, error) {
+func CreateArrayBuffer(env EnvType, buff []byte) (*ArrayBuffer, error) {
 	value, point, err := napi.MustValueErr3(napi.CreateArrayBuffer(env.NapiValue(), len(buff)))
 	if err != nil {
 		return nil, err
@@ -16,13 +16,7 @@ func CreateArrayBuffer(env *Env, buff []byte) (*ArrayBuffer, error) {
 
 	// Copy data from the byte slice to the pointer
 	copy((*[1 << 30]byte)(unsafe.Pointer(point))[:len(buff):len(buff)], buff)
-	return &ArrayBuffer{
-		Value: &Value{
-			env:     env,
-			valueOf: value,
-			typeof:  napi.MustValue(napi.Typeof(env.NapiValue(), value)),
-		},
-	}, nil
+	return &ArrayBuffer{value: FromValueNapi(env, value)}, nil
 }
 
 func (buff *ArrayBuffer) ByteLenght() (int, error) {
