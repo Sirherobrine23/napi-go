@@ -16,7 +16,7 @@ func (obj *Object) Has(name string) bool {
 }
 
 func (obj *Object) HasOwnProperty(name string) bool {
-	v, err := FromString(obj.env, name)
+	v, err := CreateString(obj.env, name)
 	if err != nil {
 		return false
 	}
@@ -35,7 +35,7 @@ func (obj *Object) Set(name string, value *Value) error {
 }
 
 func (obj *Object) Delete(name string) error {
-	v, err := FromString(obj.env, name)
+	v, err := CreateString(obj.env, name)
 	if err != nil {
 		return err
 	}

@@ -1252,3 +1252,13 @@ func GetDateValue(env Env, value Value) (float64, Status) {
 	))
 	return result, status
 }
+
+func CreateDate(env Env, time float64) (Value, Status) {
+	var result Value
+	status := Status(C.napi_create_date(
+		C.napi_env(env),
+		(C.double)(time),
+		(*C.napi_value)(unsafe.Pointer(&result)),
+	))
+	return result, status
+}

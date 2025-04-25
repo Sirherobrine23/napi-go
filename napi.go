@@ -11,6 +11,15 @@ type (
 	}
 )
 
+func FromEnvNapi(env napi.Env) *Env { return &Env{env} }
+func FromValueNapi(env *Env, value napi.Value) *Value {
+	return &Value{
+		env:     env,
+		valueOf: value,
+		typeof:  napi.MustValue(napi.Typeof(env.NapiValue(), value)),
+	}
+}
+
 // Return internal Napi Value point
 func (e *Env) NapiValue() napi.Env { return e.env }
 

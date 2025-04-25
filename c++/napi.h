@@ -10,7 +10,7 @@
 #endif
 #endif
 
-#include <node_api.h>
+#include <node/node_api.h>
 #include <functional>
 #include <initializer_list>
 #include <memory>
@@ -1523,15 +1523,10 @@ class Function : public Object {
   MaybeOrValue<Value> Call(const std::vector<napi_value>& args) const;
   MaybeOrValue<Value> Call(const std::vector<Value>& args) const;
   MaybeOrValue<Value> Call(size_t argc, const napi_value* args) const;
-  MaybeOrValue<Value> Call(napi_value recv,
-                           const std::initializer_list<napi_value>& args) const;
-  MaybeOrValue<Value> Call(napi_value recv,
-                           const std::vector<napi_value>& args) const;
-  MaybeOrValue<Value> Call(napi_value recv,
-                           const std::vector<Value>& args) const;
-  MaybeOrValue<Value> Call(napi_value recv,
-                           size_t argc,
-                           const napi_value* args) const;
+  MaybeOrValue<Value> Call(napi_value recv, const std::initializer_list<napi_value>& args) const;
+  MaybeOrValue<Value> Call(napi_value recv, const std::vector<napi_value>& args) const;
+  MaybeOrValue<Value> Call(napi_value recv, const std::vector<Value>& args) const;
+  MaybeOrValue<Value> Call(napi_value recv, size_t argc, const napi_value* args) const;
 
   MaybeOrValue<Value> MakeCallback(
       napi_value recv,

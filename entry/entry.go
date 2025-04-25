@@ -11,8 +11,8 @@ package entry
 #cgo darwin LDFLAGS: -Wl,-undefined,dynamic_lookup
 #cgo darwin LDFLAGS: -Wl,-no_pie
 #cgo darwin LDFLAGS: -Wl,-search_paths_first
-#cgo darwin amd64 LDFLAGS: -arch x86_64
-#cgo darwin arm64 LDFLAGS: -arch arm64
+// #cgo darwin amd64 LDFLAGS: -arch x86_64
+// #cgo darwin arm64 LDFLAGS: -arch arm64
 
 #cgo linux LDFLAGS: -Wl,-unresolved-symbols=ignore-all
 
@@ -23,11 +23,14 @@ package entry
 */
 import "C"
 
-import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
+import (
+	gonapi "sirherobrine23.com.br/Sirherobrine23/napi-go"
+	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
+)
 
-type Register func(env napi.Env, object napi.Value)
+type registerCallback func(env napi.Env, object napi.Value)
 
-var modFuncInit = []Register{}
+var modFuncInit = []registerCallback{}
 
 //export initializeModule
 func initializeModule(cEnv C.napi_env, cExports C.napi_value) C.napi_value {
@@ -46,7 +49,10 @@ func initializeModule(cEnv C.napi_env, cExports C.napi_value) C.napi_value {
 	return cExports
 }
 
-// Register callback to module inicialization
-func RegisterCall(fn Register) {
-	modFuncInit = append(modFuncInit, fn)
+func Register(fn func(*gonapi.Env, *gonapi.Object)) {
+	modFuncInit = append(modFuncInit, func(env napi.Env, object napi.Value) {
+		registerEnv := gonapi.FromEnvNapi(env)
+		registerObj := gonapi.FromValueNapi(registerEnv, object).ToObject()
+		fn(registerEnv, registerObj)
+	})
 }
