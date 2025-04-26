@@ -9,6 +9,8 @@ import (
 
 type Array struct{ value }
 
+func CreateArrayFromValue(value ValueType) *Array { return &Array{value} }
+
 func CreateArray(env EnvType) (*Array, error) {
 	value, err := napi.MustValueErr(napi.CreateArray(env.NapiValue()))
 	if err != nil {

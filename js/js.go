@@ -46,17 +46,19 @@ func ValueOf(env napi.EnvType, value any) (napi.ValueType, error) {
 	case string:
 		return napi.CreateString(env, v)
 	case nil:
-		return env.Null(), nil
+		return env.Null()
 	case bool:
 		return napi.CreateBoolean(env, v)
 	case error:
+		if v == nil {
+			return env.Undefined()
+		}
 		return napi.CreateError(env, v.Error())
 	case []any:
 		arr, err := napi.CreateArrayWithLength(env, len(v))
 		if err != nil {
 			return nil, err
 		}
-
 		var value napi.ValueType
 		for sliceIndex, preValue := range v {
 			if value, err = ValueOf(env, preValue); err != nil {
@@ -79,15 +81,9 @@ func ValueOf(env napi.EnvType, value any) (napi.ValueType, error) {
 			obj.Set(name, value)
 		}
 		return obj, err
-	case napi.Callback:
-		return napi.CreateFunction(env, "", v)
-	case internalNapi.Callback:
-		value, err := internalNapi.MustValueErr(internalNapi.CreateFunction(env.NapiValue(), "", v))
-		if err != nil {
-			return nil, err
-		}
-		return napi.FunctionFromValue(env, value), nil
+	case napi.Callback, internalNapi.Callback:
+		return GoFuncOf(env, v)
+	default:
+		return Reflection(env, v)
 	}
-
-	return env.MustUndefined(), nil
 }

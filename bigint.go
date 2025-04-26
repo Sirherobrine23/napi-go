@@ -4,6 +4,8 @@ import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 
 type Bigint struct{ value }
 
+func CreateBigintFromValue(valueOf ValueType) *Bigint { return &Bigint{valueOf} }
+
 func CreateBigint[T int64 | uint64](env EnvType, valueOf T) (*Bigint, error) {
 	var value napi.Value
 	var err error

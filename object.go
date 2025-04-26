@@ -96,3 +96,15 @@ func (obj *Object) Seq() iter.Seq2[string, ValueType] {
 		}
 	}
 }
+
+func (obj *Object) Get(name string) (ValueType, error) {
+	v, err := CreateString(obj.Env(), name)
+	if err != nil {
+		return nil, err
+	}
+	value, err := napi.MustValueErr(napi.GetProperty(obj.NapiEnv(), obj.NapiValue(), v.NapiValue()))
+	if err != nil {
+		return nil, err
+	}
+	return FromValueNapi(obj.Env(), value), nil
+}

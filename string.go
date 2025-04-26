@@ -22,6 +22,14 @@ func MustCreateString(env EnvType, value string) *String {
 	return valueType
 }
 
+func (str *String) ValueOf() (string, error) {
+	return napi.MustValueErr(napi.GetValueStringUtf8(str.NapiEnv(), str.NapiValue()))
+}
+
 func (str *String) String() string {
-	return napi.MustValue(napi.GetValueStringUtf8(str.NapiEnv(), str.NapiValue()))
+	stri, err := str.ValueOf()
+	if err != nil {
+		return ""
+	}
+	return stri
 }

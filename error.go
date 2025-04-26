@@ -4,6 +4,8 @@ import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 
 type Error struct{ value }
 
+func CreateErrorFromValue(value ValueType) *Error { return &Error{value} }
+
 func CreateError(env EnvType, msg string) (*Error, error) {
 	napiMsg, err := CreateString(env, msg)
 	if err != nil {

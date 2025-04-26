@@ -25,6 +25,11 @@ func CreateFunction(env EnvType, name string, callback Callback) (*Function, err
 				return nil
 			}
 			return Env.MustUndefined().NapiValue()
+		} else if res == nil {
+			return Env.MustUndefined().NapiValue()
+		} else if res.IsError() {
+			CreateErrorFromValue(res).ThrowAsJavaScriptException()
+			return Env.MustUndefined().NapiValue()
 		}
 		return res.NapiValue()
 	}))

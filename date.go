@@ -8,6 +8,8 @@ import (
 
 type Date struct{ value }
 
+func CreateDateFromValue(value ValueType) *Date { return &Date{value}}
+
 func CreateDate(env EnvType, date time.Time) (*Date, error) {
 	value, err := napi.MustValueErr(napi.CreateDate(env.NapiValue(), float64(date.UnixMilli())))
 	if err != nil {

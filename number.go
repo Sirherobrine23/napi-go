@@ -1,10 +1,18 @@
 package napi
 
-import "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
+import (
+	"fmt"
+
+	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
+)
 
 type Number struct{ value }
 
 func CreateNumber[T int | uint | int32 | uint32 | int64 | uint64 | float32 | float64](env EnvType, n T) (*Number, error) {
+	return CreateNumberAny(env, n)
+}
+
+func CreateNumberAny(env EnvType, n any) (*Number, error) {
 	var value napi.Value
 	var err error
 	switch v := any(n).(type) {
@@ -40,6 +48,8 @@ func CreateNumber[T int | uint | int32 | uint32 | int64 | uint64 | float32 | flo
 		if value, err = napi.MustValueErr(napi.CreateDouble(env.NapiValue(), v)); err != nil {
 			return nil, err
 		}
+	default:
+		return nil, fmt.Errorf("invalid number type")
 	}
 
 	return &Number{value: FromValueNapi(env, value)}, err

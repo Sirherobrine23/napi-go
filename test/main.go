@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
+	"sirherobrine23.com.br/Sirherobrine23/napi-go/js"
 )
 
 func init() {
@@ -29,6 +32,24 @@ func init() {
 			return napi.CreateDate(env, current)
 		})
 		o.Set("testFuncDate", fnDate)
+
+		if funcCall, err := js.GoFuncOf(e, func() {}); err == nil {
+			o.Set("testGoFunc", funcCall)
+		}
+
+		if funcCall, err := js.GoFuncOf(e, func(lines ...string) {
+			for _, v := range lines {
+				fmt.Println(v)
+			}
+		}); err == nil {
+			o.Set("testGoFunc2", funcCall)
+		}
+		if funcCall, err := js.GoFuncOf(e, func(l any) {
+			d, _ := json.MarshalIndent(l, "", "  ")
+			println(string(d))
+		}); err == nil {
+			o.Set("testGoFuncAny", funcCall)
+		}
 	})
 }
 
