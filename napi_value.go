@@ -21,6 +21,7 @@ type (
 	Value struct {
 		env     EnvType
 		valueOf napi.Value
+		extra   []any
 	}
 
 	NapiType int // Return typeof of Value
@@ -71,8 +72,8 @@ var napiTypeNames = map[NapiType]string{
 }
 
 // Return [ValueType] from [napi.Value]
-func N_APIValue(env EnvType, value napi.Value) ValueType {
-	return &Value{env: env, valueOf: value}
+func N_APIValue(env EnvType, value napi.Value, extra ...any) ValueType {
+	return &Value{env: env, valueOf: value, extra: extra}
 }
 
 func (v *Value) NapiValue() napi.Value { return v.valueOf }

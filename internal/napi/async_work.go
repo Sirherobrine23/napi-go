@@ -21,12 +21,7 @@ func CreateAsyncWork(env Env, asyncResource, asyncResourceName Value, execute As
 		return AsyncWork{}, status
 	}
 
-	return provider.GetAsyncWorkData().CreateAsyncWork(
-		env,
-		asyncResource, asyncResourceName,
-		execute,
-		complete,
-	)
+	return provider.GetAsyncWorkData().CreateAsyncWork(env, asyncResource, asyncResourceName, execute, complete)
 }
 
 func DeleteAsyncWork(env Env, work AsyncWork) Status {

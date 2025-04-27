@@ -8,20 +8,17 @@ import "unsafe"
 
 type Deferred unsafe.Pointer
 
-type Promise struct {
-	Deferred Deferred
-	Value    Value
-}
-
 // This API creates a deferred object and a JavaScript promise.
-func CreatePromise(env Env) (Promise, Status) {
-	var result Promise
+func CreatePromise(env Env) (Value, Deferred, Status) {
+	var value Value
+	var deferred Deferred
+	
 	status := Status(C.napi_create_promise(
 		C.napi_env(env),
-		(*C.napi_deferred)(unsafe.Pointer(&result.Deferred)),
-		(*C.napi_value)(unsafe.Pointer(&result.Value)),
+		(*C.napi_deferred)(unsafe.Pointer(&deferred)),
+		(*C.napi_value)(unsafe.Pointer(&value)),
 	))
-	return result, status
+	return value, deferred, status
 }
 
 // This API resolves a JavaScript promise by way of the deferred object with which it is associated.

@@ -25,19 +25,18 @@ import "C"
 
 import (
 	"fmt"
+	_ "unsafe"
 
 	gonapi "sirherobrine23.com.br/Sirherobrine23/napi-go"
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
-type registerCallback func(env napi.Env, object napi.Value)
-
-var modFuncInit = []registerCallback{}
-
 //export initializeModule
 func initializeModule(cEnv C.napi_env, cExports C.napi_value) C.napi_value {
 	env, exports := napi.Env(cEnv), napi.Value(cExports)
 	napi.InitializeInstanceData(env)
+	newEnv := gonapi.N_APIEnv(env)
+	exportObj := gonapi.ToObject(gonapi.N_APIValue(newEnv, exports))
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -48,19 +47,28 @@ func initializeModule(cEnv C.napi_env, cExports C.napi_value) C.napi_value {
 				gonapi.ThrowError(gonapi.N_APIEnv(env), "", fmt.Sprintf("%s", v))
 			}
 		}
+		Register(newEnv, exportObj)
 	}()
-
-	for _, registerCall := range modFuncInit {
-		registerCall(env, exports)
-	}
-
 	return cExports
 }
 
-func Register(fn func(env gonapi.EnvType, export *gonapi.Object)) {
-	modFuncInit = append(modFuncInit, func(env napi.Env, object napi.Value) {
-		registerEnv := gonapi.N_APIEnv(env)
-		registerObj := gonapi.ToObject(gonapi.N_APIValue(registerEnv, object))
-		fn(registerEnv, registerObj)
-	})
-}
+// N-API Module register
+//
+// Se https://pkg.go.dev/cmd/compile#hdr-Linkname_Directive to how link Register function
+//
+// example:
+//
+//	package main
+//
+//	import _ "unsafe"
+//	import _ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
+//	import "sirherobrine23.com.br/Sirherobrine23/napi-go"
+//
+//	//go:linkname wg sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
+//	func wg(env napi.EnvType, export *napi.Object) {
+//		str, _ := napi.CreateString(env, "hello from Gopher")
+//		export.Set("msg", str)
+//	}
+//
+//go:linkname Register
+func Register(env gonapi.EnvType, export *gonapi.Object)

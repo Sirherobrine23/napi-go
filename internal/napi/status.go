@@ -68,6 +68,7 @@ const (
 	StatusWouldDeadlock                 Status = C.napi_would_deadlock
 )
 
+// Return error if Status is not StatusOK
 func (s Status) ToError() error {
 	if s == StatusOK {
 		return nil

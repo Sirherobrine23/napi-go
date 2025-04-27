@@ -1,0 +1,25 @@
+// Export values to Javascript
+package entry
+
+import (
+	_ "unsafe"
+
+	"sirherobrine23.com.br/Sirherobrine23/napi-go"
+	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
+)
+
+type registerCallback func(env napi.EnvType, object *napi.Object)
+
+var modFuncInit = []registerCallback{}
+
+//go:linkname start sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
+func start(env napi.EnvType, export *napi.Object) {
+	for _, registerCall := range modFuncInit {
+		registerCall(env, export)
+	}
+}
+
+// Register callback to register export values
+func Register(fn registerCallback) {
+	modFuncInit = append(modFuncInit, fn)
+}

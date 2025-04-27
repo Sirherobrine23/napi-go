@@ -93,12 +93,7 @@ type CallbackDataProvider interface {
 }
 
 type AsyncWorkDataProvider interface {
-	CreateAsyncWork(
-		env Env,
-		asyncResource, asyncResourceName Value,
-		execute AsyncExecuteCallback,
-		complete AsyncCompleteCallback,
-	) (AsyncWork, Status)
+	CreateAsyncWork(env Env, asyncResource, asyncResourceName Value, execute AsyncExecuteCallback, complete AsyncCompleteCallback) (AsyncWork, Status)
 	GetAsyncWork(id NapiGoAsyncWorkID) *NapiGoAsyncWorkMapEntry
 	DeleteAsyncWork(id NapiGoAsyncWorkID)
 }
@@ -218,11 +213,7 @@ func ExecuteAsyncCompleteCallback(cEnv C.napi_env, cStatus C.napi_status, cData 
 
 func getInstanceDataHandle(env Env) (cgo.Handle, Status) {
 	var result unsafe.Pointer
-	status := Status(C.napi_get_instance_data(
-		C.napi_env(env),
-		&result,
-	))
-
+	status := Status(C.napi_get_instance_data(C.napi_env(env), &result))
 	if status != StatusOK || result == nil {
 		return cgo.Handle(0), status
 	}
