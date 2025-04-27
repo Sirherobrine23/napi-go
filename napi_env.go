@@ -13,7 +13,7 @@ type EnvType interface {
 func N_APIEnv(env napi.Env) EnvType { return &Env{env} }
 
 // N-API Env
-type Env struct{
+type Env struct {
 	NapiEnv napi.Env
 }
 

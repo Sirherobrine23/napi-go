@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"strings"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 	internalNapi "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
@@ -17,35 +18,42 @@ func GoFuncOf(env napi.EnvType, function any) (napi.ValueType, error) {
 func funcOf(env napi.EnvType, ptr reflect.Value) (napi.ValueType, error) {
 	if ptr.Kind() != reflect.Func {
 		return nil, fmt.Errorf("return function to return napi value")
+	} else if !ptr.IsValid() {
+		return nil, fmt.Errorf("return valid reflect")
+	} else if !ptr.CanInterface() {
+		return nil, fmt.Errorf("cannot check function type")
+	} else if ptr.IsNil() {
+		// return nil, fmt.Errorf("return function, is nil")
+		return nil, nil
 	}
 
-	funcName := runtime.FuncForPC(ptr.Pointer()).Name()
+	funcName := strings.ReplaceAll(runtime.FuncForPC(ptr.Pointer()).Name(), ".", "_")
 	switch v := ptr.Interface().(type) {
-	case nil:
-		return nil, nil
-	case napi.Callback:
+	case napi.Callback: // return function value
 		return napi.CreateFunction(env, funcName, v)
-	case internalNapi.Callback:
+	case internalNapi.Callback: // return internal/napi function value
 		return napi.CreateFunctionNapi(env, funcName, v)
-	default:
+	default: // Convert go function to javascript function
 		return napi.CreateFunction(env, funcName, func(env napi.EnvType, this napi.ValueType, args []napi.ValueType) (napi.ValueType, error) {
 			fnType := ptr.Type()
 			returnValues := []reflect.Value{}
 			switch {
-			case fnType.NumIn() == 0 && fnType.NumOut() == 0:
+			case fnType.NumIn() == 0 && fnType.NumOut() == 0: // only call
 				returnValues = ptr.Call([]reflect.Value{})
-			case !fnType.IsVariadic():
+			case !fnType.IsVariadic(): // call same args
 				returnValues = ptr.Call(goValuesInFunc(ptr, args, false))
-			default:
+			default: // call with slice on end
 				returnValues = ptr.CallSlice(goValuesInFunc(ptr, args, true))
 			}
 
+			// Check return value
+		retry:
 			switch len(returnValues) {
-			case 0:
-				return nil, nil
-			case 1:
+			case 0: // not value to return
+				return env.Undefined()
+			case 1: // Check if error or value to return
 				return valueOf(env, returnValues[0])
-			default:
+			default: // Convert to array return and check if latest is error
 				lastValue := returnValues[len(returnValues)-1]
 				if lastValue.CanConvert(reflect.TypeFor[error]()) {
 					returnValues = returnValues[:len(returnValues)-1]
@@ -54,52 +62,47 @@ func funcOf(env napi.EnvType, ptr reflect.Value) (napi.ValueType, error) {
 							return nil, err
 						}
 					}
-
+					goto retry
 				}
 
-				switch len(returnValues) {
-				case 1:
-					// Return value from return
-					return valueOf(env, returnValues[0])
-				default:
-					// Create array
-					arr, err := napi.CreateArray(env, len(returnValues))
+				// Create array
+				arr, err := napi.CreateArray(env, len(returnValues))
+				if err != nil {
+					return nil, err
+				}
+
+				// Append values to js array
+				for index, value := range returnValues {
+					napiValue, err := valueOf(env, value)
 					if err != nil {
 						return nil, err
+					} else if err = arr.Set(index, napiValue); err != nil {
+						return nil, err
 					}
-
-					// Append values to js array
-					for index, value := range returnValues {
-						napiValue, err := valueOf(env, value)
-						if err != nil {
-							return nil, err
-						} else if err = arr.Set(index, napiValue); err != nil {
-							return nil, err
-						}
-					}
-
-					return arr, nil
 				}
+				return arr, nil
 			}
 		})
 	}
 }
 
+// Create call value to go function
 func goValuesInFunc(ptr reflect.Value, jsArgs []napi.ValueType, variadic bool) (values []reflect.Value) {
 	if variadic && (ptr.Type().NumIn()-1 > 0) && ptr.Type().NumIn()-1 < len(jsArgs) {
 		panic(fmt.Errorf("require minimun %d arguments, called with %d", ptr.Type().NumIn()-1, len(jsArgs)))
-	} else if !variadic &&ptr.Type().NumIn() != len(jsArgs) {
+	} else if !variadic && ptr.Type().NumIn() != len(jsArgs) {
 		panic(fmt.Errorf("require %d arguments, called with %d", ptr.Type().NumIn(), len(jsArgs)))
 	}
 
 	size := ptr.Type().NumIn()
 	if variadic {
-		size--
+		size-- // remove latest value to slice
 	}
 
+	// Convert value
 	values = make([]reflect.Value, size)
 	for index := range values {
-		valueOf := reflect.New(ptr.Type().In(index))
+		valueOf := reflect.New(ptr.Type().In(index)) // Create value to append go value
 		if err := valueFrom(jsArgs[index], valueOf); err != nil {
 			panic(err)
 		}
@@ -108,7 +111,7 @@ func goValuesInFunc(ptr reflect.Value, jsArgs []napi.ValueType, variadic bool) (
 
 	if variadic {
 		variadicType := ptr.Type().In(size).Elem()
-		
+
 		valueAppend := jsArgs[size:]
 		valueOf := reflect.MakeSlice(reflect.SliceOf(variadicType), len(valueAppend), len(valueAppend))
 		for index := range valueAppend {

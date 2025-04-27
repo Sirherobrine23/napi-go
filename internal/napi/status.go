@@ -1,19 +1,47 @@
 package napi
 
-/*
-#include <node/node_api.h>
-*/
+// #include <node/node_api.h>
 import "C"
 
 import (
 	"fmt"
+	"unsafe"
 )
 
-type Status int
+type ExtendedError struct {
+	Message         string         // Textual representation of the error that occurred.
+	StatusCode      Status         // Node-API status code for the last error.
+	EngineErrorCode int32          // VM specific error code.
+	EngineReserved  unsafe.Pointer // Opaque handle reserved for engine use only.
+}
+
+var _ error = StatusError(0)
 
 type StatusError Status
 
-var _ error = StatusError(0)
+func (err StatusError) Error() string {
+	return fmt.Sprintf("napi_status error: %s", Status(err))
+}
+
+// Integral status code indicating the success or failure of a Node-API call.
+// Currently, the following status codes are supported.
+type Status int
+
+// GetExtendedErrorInfo Function to retrieve extended error information
+func GetExtendedErrorInfo(env Env) (*ExtendedError, Status) {
+	var errorInfo *C.napi_extended_error_info
+	status := Status(C.napi_get_last_error_info(C.napi_env(env), &errorInfo))
+	var extendErr *ExtendedError
+	if status == StatusOK {
+		extendErr = &ExtendedError{
+			Message:         C.GoString(errorInfo.error_message),
+			StatusCode:      Status(errorInfo.error_code),
+			EngineErrorCode: int32(errorInfo.engine_error_code),
+			EngineReserved:  errorInfo.engine_reserved,
+		}
+	}
+	return extendErr, status
+}
 
 const (
 	StatusOK                            Status = C.napi_ok
@@ -39,6 +67,13 @@ const (
 	StatusDetachableArraybufferExpected Status = C.napi_detachable_arraybuffer_expected
 	StatusWouldDeadlock                 Status = C.napi_would_deadlock
 )
+
+func (s Status) ToError() error {
+	if s == StatusOK {
+		return nil
+	}
+	return StatusError(s)
+}
 
 func (s Status) String() string {
 	switch s {
@@ -89,8 +124,4 @@ func (s Status) String() string {
 	}
 
 	return "napi_go_status_unknown"
-}
-
-func (err StatusError) Error() string {
-	return fmt.Sprintf("napi_status error: %s", Status(err))
 }

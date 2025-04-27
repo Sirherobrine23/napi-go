@@ -36,7 +36,6 @@ import "C"
 
 import (
 	"fmt"
-	"runtime"
 	"runtime/cgo"
 	"sync"
 	"unsafe"
@@ -108,40 +107,25 @@ var _ InstanceDataProvider = &NapiGoInstanceData{}
 var _ CallbackDataProvider = &NapiGoInstanceCallbackData{}
 var _ AsyncWorkDataProvider = &NapiGoInstanceAsyncWorkData{}
 
-const (
-	maxStackTraceSize = 8192
-)
+const maxStackTraceSize = 8192
 
 func InitializeInstanceData(env Env) Status {
 	return setInstanceData(env, &NapiGoInstanceData{})
 }
 
 //export DeleteInstanceData
-func DeleteInstanceData(
-	env C.napi_env,
-	finalizeData, finalizeHint unsafe.Pointer,
-) {
+func DeleteInstanceData(env C.napi_env, finalizeData, finalizeHint unsafe.Pointer) {
 	instanceDataHandle := cgo.Handle(finalizeData)
 	instanceDataHandle.Delete()
 }
 
 //export DeleteCallbackData
-func DeleteCallbackData(
-	cEnv C.napi_env,
-	finalizeData, finalizeHint unsafe.Pointer,
-) {
+func DeleteCallbackData(cEnv C.napi_env, finalizeData, finalizeHint unsafe.Pointer) {
 	env := Env(cEnv)
 	defer func() {
 		err := recover()
 		if err != nil {
-			fmt.Printf("napi.DeleteCallbackData: Recovered from panic: %s\n", err)
-			reportStackTrace()
-
-			msg := "unknown error"
-			if err, ok := err.(error); ok {
-				msg = err.Error()
-			}
-			ThrowError(env, "", msg)
+			ThrowError(env, "", fmt.Sprintf("napi.DeleteCallbackData: Recovered from panic: %s\n", err))
 		}
 	}()
 
@@ -155,22 +139,12 @@ func DeleteCallbackData(
 }
 
 //export ExecuteCallback
-func ExecuteCallback(
-	cEnv C.napi_env,
-	cInfo C.napi_callback_info,
-) C.napi_value {
+func ExecuteCallback(cEnv C.napi_env, cInfo C.napi_callback_info) C.napi_value {
 	env := Env(cEnv)
 	defer func() {
 		err := recover()
 		if err != nil {
-			fmt.Printf("napi.ExecuteCallback: Recovered from panic: %s\n", err)
-			reportStackTrace()
-
-			msg := "unknown error"
-			if err, ok := err.(error); ok {
-				msg = err.Error()
-			}
-			ThrowError(env, "", msg)
+			ThrowError(env, "", fmt.Sprintf("napi.ExecuteCallback: Recovered from panic: %s\n", err))
 		}
 	}()
 
@@ -208,17 +182,7 @@ func ExecuteAsyncExecuteCallback(cEnv C.napi_env, cData unsafe.Pointer) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			fmt.Printf(
-				"napi.ExecuteAsyncExecuteCallback: Recovered from panic: %s\n",
-				err,
-			)
-			reportStackTrace()
-
-			msg := "unknown error"
-			if err, ok := err.(error); ok {
-				msg = err.Error()
-			}
-			ThrowError(env, "", msg)
+			ThrowError(env, "", fmt.Sprintf("napi.ExecuteAsyncExecuteCallback: Recovered from panic: %s\n", err))
 		}
 	}()
 
@@ -233,26 +197,12 @@ func ExecuteAsyncExecuteCallback(cEnv C.napi_env, cData unsafe.Pointer) {
 }
 
 //export ExecuteAsyncCompleteCallback
-func ExecuteAsyncCompleteCallback(
-	cEnv C.napi_env,
-	cStatus C.napi_status,
-	cData unsafe.Pointer,
-) {
+func ExecuteAsyncCompleteCallback(cEnv C.napi_env, cStatus C.napi_status, cData unsafe.Pointer) {
 	env := Env(cEnv)
 	defer func() {
 		err := recover()
 		if err != nil {
-			fmt.Printf(
-				"napi.ExecuteAsyncExecuteCallback: Recovered from panic: %s\n",
-				err,
-			)
-			reportStackTrace()
-
-			msg := "unknown error"
-			if err, ok := err.(error); ok {
-				msg = err.Error()
-			}
-			ThrowError(env, "", msg)
+			ThrowError(env, "", fmt.Sprintf("napi.ExecuteAsyncExecuteCallback: Recovered from panic: %s", err))
 		}
 	}()
 
@@ -310,12 +260,6 @@ func setInstanceData(env Env, data *NapiGoInstanceData) Status {
 	))
 }
 
-func reportStackTrace() {
-	stackTraceBuf := make([]byte, maxStackTraceSize)
-	stackTraceSz := runtime.Stack(stackTraceBuf, false)
-	fmt.Printf("%s\n", string(stackTraceBuf[:stackTraceSz]))
-}
-
 func (d *NapiGoInstanceData) GetUserData() any {
 	return d.UserData
 }
@@ -332,11 +276,7 @@ func (d *NapiGoInstanceData) GetAsyncWorkData() AsyncWorkDataProvider {
 	return &d.AsyncWorkData
 }
 
-func (d *NapiGoInstanceCallbackData) CreateCallback(
-	env Env,
-	name string,
-	cb Callback,
-) (Value, Status) {
+func (d *NapiGoInstanceCallbackData) CreateCallback(env Env, name string, cb Callback) (Value, Status) {
 	d.Lock.Lock()
 	defer d.Lock.Unlock()
 
@@ -369,9 +309,7 @@ func (d *NapiGoInstanceCallbackData) CreateCallback(
 	return result, status
 }
 
-func (d *NapiGoInstanceCallbackData) GetCallback(
-	id NapiGoCallbackID,
-) *NapiGoCallbackMapEntry {
+func (d *NapiGoInstanceCallbackData) GetCallback(id NapiGoCallbackID) *NapiGoCallbackMapEntry {
 	d.Lock.RLock()
 	defer d.Lock.RUnlock()
 	return d.CallbackMap[id]
@@ -383,9 +321,7 @@ func (d *NapiGoInstanceCallbackData) DeleteCallback(id NapiGoCallbackID) {
 	delete(d.CallbackMap, id)
 }
 
-func (d *NapiGoInstanceCallbackData) insert(
-	cb Callback,
-) *NapiGoCallbackMapEntry {
+func (d *NapiGoInstanceCallbackData) insert(cb Callback) *NapiGoCallbackMapEntry {
 	// callers are expected to lock
 
 	if d.CallbackMap == nil {
@@ -407,12 +343,7 @@ func (d *NapiGoInstanceCallbackData) insert(
 	}
 }
 
-func (d *NapiGoInstanceAsyncWorkData) CreateAsyncWork(
-	env Env,
-	asyncResource, asyncResourceName Value,
-	execute AsyncExecuteCallback,
-	complete AsyncCompleteCallback,
-) (AsyncWork, Status) {
+func (d *NapiGoInstanceAsyncWorkData) CreateAsyncWork(env Env, asyncResource, asyncResourceName Value, execute AsyncExecuteCallback, complete AsyncCompleteCallback) (AsyncWork, Status) {
 	d.Lock.Lock()
 	defer d.Lock.Unlock()
 
@@ -434,9 +365,7 @@ func (d *NapiGoInstanceAsyncWorkData) CreateAsyncWork(
 	return result, status
 }
 
-func (d *NapiGoInstanceAsyncWorkData) GetAsyncWork(
-	id NapiGoAsyncWorkID,
-) *NapiGoAsyncWorkMapEntry {
+func (d *NapiGoInstanceAsyncWorkData) GetAsyncWork(id NapiGoAsyncWorkID) *NapiGoAsyncWorkMapEntry {
 	d.Lock.RLock()
 	defer d.Lock.RUnlock()
 	return d.AsyncWorkMap[id]
@@ -448,12 +377,8 @@ func (d *NapiGoInstanceAsyncWorkData) DeleteAsyncWork(id NapiGoAsyncWorkID) {
 	delete(d.AsyncWorkMap, id)
 }
 
-func (d *NapiGoInstanceAsyncWorkData) insert(
-	execute AsyncExecuteCallback,
-	complete AsyncCompleteCallback,
-) *NapiGoAsyncWorkMapEntry {
+func (d *NapiGoInstanceAsyncWorkData) insert(execute AsyncExecuteCallback, complete AsyncCompleteCallback) *NapiGoAsyncWorkMapEntry {
 	// callers are expected to lock
-
 	if d.AsyncWorkMap == nil {
 		d.AsyncWorkMap = NapiGoInstanceAsyncWorkMap{}
 	}

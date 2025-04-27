@@ -1,14 +1,13 @@
 package napi
 
-/*
-#include <stdlib.h>
-#include <node/node_api.h>
-*/
+// #include <stdlib.h>
+// #include <node/node_api.h>
 import "C"
 
-import (
-	"unsafe"
-)
+import "unsafe"
+
+type CallbackInfo unsafe.Pointer
+type Callback func(env Env, info CallbackInfo) Value
 
 func GetUndefined(env Env) (Value, Status) {
 	var result Value
@@ -314,32 +313,6 @@ func ThrowError(env Env, code, msg string) Status {
 		C.napi_env(env),
 		codeCStr,
 		msgCCstr,
-	))
-}
-
-func CreatePromise(env Env) (Promise, Status) {
-	var result Promise
-	status := Status(C.napi_create_promise(
-		C.napi_env(env),
-		(*C.napi_deferred)(unsafe.Pointer(&result.Deferred)),
-		(*C.napi_value)(unsafe.Pointer(&result.Value)),
-	))
-	return result, status
-}
-
-func ResolveDeferred(env Env, deferred Deferred, resolution Value) Status {
-	return Status(C.napi_resolve_deferred(
-		C.napi_env(env),
-		C.napi_deferred(deferred),
-		C.napi_value(resolution),
-	))
-}
-
-func RejectDeferred(env Env, deferred Deferred, rejection Value) Status {
-	return Status(C.napi_reject_deferred(
-		C.napi_env(env),
-		C.napi_deferred(deferred),
-		C.napi_value(rejection),
 	))
 }
 
@@ -736,130 +709,6 @@ func DefineProperties(env Env, object Value, properties []PropertyDescriptor) St
 	))
 }
 
-// Wrap function to use the Finalizer type internally
-func Wrap(env Env, jsObject Value, nativeObject unsafe.Pointer, finalize Finalize, finalizeHint unsafe.Pointer) Status {
-	var result Reference
-	status := Status(C.napi_wrap(
-		C.napi_env(env),
-		C.napi_value(jsObject),
-		nativeObject,
-		C.napi_finalize(unsafe.Pointer(&finalize)),
-		finalizeHint,
-		(*C.napi_ref)(unsafe.Pointer(&result)),
-	))
-	return status
-}
-
-func Unwrap(env Env, jsObject Value) (unsafe.Pointer, Status) {
-	var nativeObject unsafe.Pointer
-	status := Status(C.napi_unwrap(
-		C.napi_env(env),
-		C.napi_value(jsObject),
-		&nativeObject,
-	))
-	return nativeObject, status
-}
-
-func RemoveWrap(env Env, jsObject Value) Status {
-	var result unsafe.Pointer
-	return Status(C.napi_remove_wrap(
-		C.napi_env(env),
-		C.napi_value(jsObject),
-		&result,
-	))
-}
-
-func OpenHandleScope(env Env) (HandleScope, Status) {
-	var scope HandleScope
-	status := Status(C.napi_open_handle_scope(
-		C.napi_env(env),
-		(*C.napi_handle_scope)(unsafe.Pointer(&scope)),
-	))
-	return scope, status
-}
-
-func CloseHandleScope(env Env, scope HandleScope) Status {
-	return Status(C.napi_close_handle_scope(
-		C.napi_env(env),
-		C.napi_handle_scope(unsafe.Pointer(&scope)),
-	))
-}
-
-func OpenEscapableHandleScope(env Env) (EscapableHandleScope, Status) {
-	var scope EscapableHandleScope
-	status := Status(C.napi_open_escapable_handle_scope(
-		C.napi_env(env),
-		(*C.napi_escapable_handle_scope)(unsafe.Pointer(&scope)),
-	))
-	return scope, status
-}
-
-func CloseEscapableHandleScope(env Env, scope EscapableHandleScope) Status {
-	return Status(C.napi_close_escapable_handle_scope(
-		C.napi_env(env),
-		C.napi_escapable_handle_scope(unsafe.Pointer(&scope)),
-	))
-}
-
-func EscapeHandle(env Env, scope EscapableHandleScope, escapee Value) (Value, Status) {
-	var result Value
-	status := Status(C.napi_escape_handle(
-		C.napi_env(env),
-		C.napi_escapable_handle_scope(unsafe.Pointer(&scope)),
-		C.napi_value(escapee),
-		(*C.napi_value)(unsafe.Pointer(&result)),
-	))
-	return result, status
-}
-
-func CreateReference(env Env, value Value, initialRefcount int) (Reference, Status) {
-	var ref Reference
-	status := Status(C.napi_create_reference(
-		C.napi_env(env),
-		C.napi_value(value),
-		C.uint32_t(initialRefcount),
-		(*C.napi_ref)(unsafe.Pointer(&ref)),
-	))
-	return ref, status
-}
-
-func DeleteReference(env Env, ref Reference) Status {
-	return Status(C.napi_delete_reference(
-		C.napi_env(env),
-		C.napi_ref(unsafe.Pointer(&ref)),
-	))
-}
-
-func ReferenceRef(env Env, ref Reference) (int, Status) {
-	var result C.uint32_t
-	status := Status(C.napi_reference_ref(
-		C.napi_env(env),
-		C.napi_ref(unsafe.Pointer(&ref)),
-		&result,
-	))
-	return int(result), status
-}
-
-func ReferenceUnref(env Env, ref Reference) (int, Status) {
-	var result C.uint32_t
-	status := Status(C.napi_reference_unref(
-		C.napi_env(env),
-		C.napi_ref(ref.Ref),
-		&result,
-	))
-	return int(result), status
-}
-
-func GetReferenceValue(env Env, ref Reference) (Value, Status) {
-	var result Value
-	status := Status(C.napi_get_reference_value(
-		C.napi_env(env),
-		C.napi_ref(unsafe.Pointer(&ref)),
-		(*C.napi_value)(unsafe.Pointer(&result)),
-	))
-	return result, status
-}
-
 func GetValueBigIntUint64(env Env, value Value) (uint64, bool, Status) {
 	var result uint64
 	var lossless bool
@@ -1151,16 +1000,6 @@ func CloseCallbackScope(env Env, scope CallbackScope) Status {
 		C.napi_env(env),
 		scope.scope,
 	))
-}
-
-// GetExtendedErrorInfo Function to retrieve extended error information
-func GetExtendedErrorInfo(env Env) (*C.napi_extended_error_info, Status) {
-	var errorInfo *C.napi_extended_error_info
-	status := Status(C.napi_get_last_error_info(
-		C.napi_env(env),
-		&errorInfo,
-	))
-	return errorInfo, status
 }
 
 func CreateInt32(env Env, value int32) (Value, Status) {

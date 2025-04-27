@@ -30,7 +30,7 @@ func init() {
 				map[string]string{"exampleMap": "test"},
 				map[int]string{1: "one"},
 				map[bool]string{false: "false", true: "true"},
-				map[[2]string]string{[2]string{"go"}: "example"},
+				map[[2]string]string{{"go"}: "example"},
 				netip.IPv4Unspecified(),
 				netip.IPv6Unspecified(),
 				netip.AddrPortFrom(netip.IPv6Unspecified(), 19132),
