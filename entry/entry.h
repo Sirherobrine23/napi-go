@@ -7,9 +7,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
-// InitializeModule is a N-API module initialization function.
-// InitializeModule is suitable for use as a napi_addon_register_func.
-extern napi_value InitializeModule(
+// initializeModule is a N-API module initialization function.
+// initializeModule is suitable for use as a napi_addon_register_func.
+extern napi_value initializeModule(
   napi_env    env,
   napi_value  exports
 );

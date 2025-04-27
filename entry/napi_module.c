@@ -2,4 +2,4 @@
 
 #include "./entry.h"
 
-NAPI_MODULE(napiGo, InitializeModule)
+NAPI_MODULE(napiGo, initializeModule)
