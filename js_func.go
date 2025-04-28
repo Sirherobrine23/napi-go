@@ -105,7 +105,7 @@ func goValuesInFunc(ptr reflect.Value, jsArgs []ValueType, variadic bool) (value
 		if err := valueFrom(jsArgs[index], valueOf); err != nil {
 			panic(err)
 		}
-		values[index] = valueOf
+		values[index] = valueOf.Elem()
 	}
 
 	if variadic {
