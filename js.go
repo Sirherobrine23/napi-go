@@ -120,54 +120,60 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 				return nil, err
 			}
 
-			keyNamed := fieldType.Name
-			if strings.Count(fieldType.Tag.Get(propertiesTagName), ",") > 0 {
-				fields := strings.SplitN(fieldType.Tag.Get(propertiesTagName), ",", 2)
-				keyNamed = fields[0]
-				switch fields[1] {
-				case "omitempty":
-					switch typeof {
-					case TypeUndefined, TypeNull, TypeUnkown:
-						continue
-					case TypeString:
-						str, err := ToString(value).Utf8Value()
-						if err != nil {
-							return nil, err
-						} else if str == "" {
+			var keyNamed string
+			switch v := strings.TrimSpace(fieldType.Tag.Get(propertiesTagName)); v {
+			case "":
+				keyNamed = fieldType.Name
+			default:
+				keyNamed = v
+				if strings.Count(v, ",") > 0 {
+					fields := strings.SplitN(v, ",", 2)
+					keyNamed = fields[0]
+					switch fields[1] {
+					case "omitempty":
+						switch typeof {
+						case TypeUndefined, TypeNull, TypeUnkown:
 							continue
+						case TypeString:
+							str, err := ToString(value).Utf8Value()
+							if err != nil {
+								return nil, err
+							} else if str == "" {
+								continue
+							}
 						}
-					}
-				case "omitzero":
-					switch typeof {
-					case TypeUndefined, TypeNull, TypeUnkown:
-						continue
-					case TypeDate:
-						value, err := ToDate(value).Time()
-						if err != nil {
-							return nil, err
-						} else if value.Unix() == 0 {
+					case "omitzero":
+						switch typeof {
+						case TypeUndefined, TypeNull, TypeUnkown:
 							continue
-						}
-					case TypeBigInt:
-						value, err := ToBigint(value).Int64()
-						if err != nil {
-							return nil, err
-						} else if value == 0 {
-							continue
-						}
-					case TypeNumber:
-						value, err := ToNumber(value).Int()
-						if err != nil {
-							return nil, err
-						} else if value == 0 {
-							continue
-						}
-					case TypeArray:
-						value, err := ToArray(value).Length()
-						if err != nil {
-							return nil, err
-						} else if value == 0 {
-							continue
+						case TypeDate:
+							value, err := ToDate(value).Time()
+							if err != nil {
+								return nil, err
+							} else if value.Unix() == 0 {
+								continue
+							}
+						case TypeBigInt:
+							value, err := ToBigint(value).Int64()
+							if err != nil {
+								return nil, err
+							} else if value == 0 {
+								continue
+							}
+						case TypeNumber:
+							value, err := ToNumber(value).Int()
+							if err != nil {
+								return nil, err
+							} else if value == 0 {
+								continue
+							}
+						case TypeArray:
+							value, err := ToArray(value).Length()
+							if err != nil {
+								return nil, err
+							} else if value == 0 {
+								continue
+							}
 						}
 					}
 				}
@@ -270,181 +276,51 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 	case reflect.Pointer:
 		return valueFrom(jsValue, ptr.Elem())
 	case reflect.Interface:
-		// Check if is any and can set
-		if ptr.CanSet() && ptrType == reflect.TypeFor[any]() {
-			switch typeOf {
-			case TypeNull, TypeUndefined, TypeUnkown:
-				ptr.Set(reflect.Zero(ptrType))
-				return nil
-			case TypeBoolean:
-				valueOf, err := ToBoolean(jsValue).Value()
-				if err != nil {
-					return err
-				}
-				ptr.Set(reflect.ValueOf(valueOf))
-			case TypeNumber:
-				numberValue, err := ToNumber(jsValue).Float()
-				if err != nil {
-					return err
-				}
-				ptr.Set(reflect.ValueOf(numberValue))
-			case TypeBigInt:
-				numberValue, err := ToBigint(jsValue).Int64()
-				if err != nil {
-					return err
-				}
-				ptr.Set(reflect.ValueOf(numberValue))
-			case TypeString:
-				str, err := ToString(jsValue).Utf8Value()
-				if err != nil {
-					return err
-				}
-				ptr.Set(reflect.ValueOf(str))
-			case TypeDate:
-				timeDate, err := ToDate(jsValue).Time()
-				if err != nil {
-					return err
-				}
-				ptr.Set(reflect.ValueOf(timeDate))
-			case TypeArray:
-				napiArray := ToArray(jsValue)
-				size, err := napiArray.Length()
-				if err != nil {
-					return err
-				}
-				value := reflect.MakeSlice(reflect.SliceOf(ptrType), size, size)
-				for index := range size {
-					napiValue, err := napiArray.Get(index)
-					if err != nil {
-						return err
-					} else if err = valueFrom(napiValue, value.Index(index)); err != nil {
-						return err
-					}
-				}
-				ptr.Set(value)
-			case TypeBuffer:
-				buff, err := ToBuffer(jsValue).Data()
-				if err != nil {
-					return err
-				}
-				ptr.Set(reflect.ValueOf(buff))
-			case TypeObject:
-				obj := ToObject(jsValue)
-				goMap := reflect.MakeMap(reflect.MapOf(reflect.TypeFor[string](), reflect.TypeFor[any]()))
-				for keyName, value := range obj.Seq() {
-					valueOf := reflect.New(reflect.TypeFor[any]())
-					if err := valueFrom(value, valueOf); err != nil {
-						return err
-					}
-					goMap.SetMapIndex(reflect.ValueOf(keyName), valueOf)
-				}
-				ptr.Set(goMap)
-			case TypeFunction:
-				ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
-			}
-			return nil
+		if !ptr.CanSet() || ptrType != reflect.TypeFor[any]() {
+			break
 		}
-		return fmt.Errorf("cannot set value, returned %s", typeOf)
-	}
 
-	switch typeOf {
-	case TypeNull, TypeUndefined, TypeUnkown:
-		switch ptrType.Kind() {
-		case reflect.Interface, reflect.Pointer:
+		switch typeOf {
+		case TypeNull, TypeUndefined, TypeUnkown:
 			ptr.Set(reflect.Zero(ptrType))
 			return nil
-		default:
-			return fmt.Errorf("cannot set value, returned %s", typeOf)
-		}
-	case TypeBoolean:
-		switch ptr.Kind() {
-		case reflect.Bool:
+		case TypeBoolean:
 			valueOf, err := ToBoolean(jsValue).Value()
 			if err != nil {
 				return err
 			}
-			ptr.SetBool(valueOf)
-		default:
-			return fmt.Errorf("cannot set boolean value to %s", ptr.Kind())
-		}
-	case TypeNumber:
-		switch ptrType.Kind() {
-		case reflect.Float32, reflect.Float64:
-			floatValue, err := ToNumber(jsValue).Float()
+			ptr.Set(reflect.ValueOf(valueOf))
+		case TypeNumber:
+			numberValue, err := ToNumber(jsValue).Float()
 			if err != nil {
 				return err
 			}
-			ptr.SetFloat(floatValue)
-			return nil
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			numberValue, err := ToNumber(jsValue).Int()
+			ptr.Set(reflect.ValueOf(numberValue))
+		case TypeBigInt:
+			numberValue, err := ToBigint(jsValue).Int64()
 			if err != nil {
 				return err
 			}
-			ptr.SetInt(numberValue)
-			return nil
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			numberValue, err := ToNumber(jsValue).Int()
+			ptr.Set(reflect.ValueOf(numberValue))
+		case TypeString:
+			str, err := ToString(jsValue).Utf8Value()
 			if err != nil {
 				return err
 			}
-			ptr.SetUint(uint64(numberValue))
-			return nil
-		default:
-			return fmt.Errorf("cannot set number value to %s", ptr.Kind())
-		}
-	case TypeBigInt:
-		switch ptrType.Kind() {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			numberValue, err := ToNumber(jsValue).Int()
-			if err != nil {
-				return err
-			}
-			ptr.SetInt(numberValue)
-			return nil
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			numberValue, err := ToNumber(jsValue).Int()
-			if err != nil {
-				return err
-			}
-			ptr.SetUint(uint64(numberValue))
-			return nil
-		default:
-			return fmt.Errorf("cannot set number value to %s", ptr.Kind())
-		}
-	case TypeString:
-		str, err := ToString(jsValue).Utf8Value()
-		if err != nil {
-			return err
-		}
-		switch {
-		case ptr.CanConvert(reflect.TypeFor[encoding.TextUnmarshaler]()):
-			return ptr.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(str))
-		case ptr.Kind() == reflect.String:
 			ptr.Set(reflect.ValueOf(str))
-			return nil
-		}
-		return fmt.Errorf("cannot set string to %s", ptr.Kind())
-	case TypeDate:
-		if ptrType == reflect.TypeFor[time.Time]() {
+		case TypeDate:
 			timeDate, err := ToDate(jsValue).Time()
 			if err != nil {
 				return err
 			}
 			ptr.Set(reflect.ValueOf(timeDate))
-			return nil
-		}
-		return fmt.Errorf("cannot set Date to %s", ptr.Kind())
-	case TypeArray:
-		napiArray := ToArray(jsValue)
-		size, err := napiArray.Length()
-		if err != nil {
-			return err
-		}
-
-		switch ptr.Kind() {
-		case reflect.Slice:
-			value := reflect.MakeSlice(ptrType, size, size)
+		case TypeArray:
+			napiArray := ToArray(jsValue)
+			size, err := napiArray.Length()
+			if err != nil {
+				return err
+			}
+			value := reflect.MakeSlice(reflect.SliceOf(ptrType), size, size)
 			for index := range size {
 				napiValue, err := napiArray.Get(index)
 				if err != nil {
@@ -454,183 +330,213 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 				}
 			}
 			ptr.Set(value)
-			return nil
-		case reflect.Array:
-			value := reflect.New(ptrType)
-			for index := range min(size, value.Len()) {
-				napiValue, err := napiArray.Get(index)
-				if err != nil {
-					return err
-				} else if err = valueFrom(napiValue, value.Index(index)); err != nil {
-					return err
-				}
-			}
-			ptr.Set(value)
-			return nil
-		default:
-			return fmt.Errorf("cannot set Array to %s", ptr.Kind())
-		}
-	case TypeBuffer:
-		if ptrType == reflect.TypeFor[[]byte]() {
+		case TypeBuffer:
 			buff, err := ToBuffer(jsValue).Data()
 			if err != nil {
 				return err
 			}
-			ptr.SetBytes(buff)
-			return nil
+			ptr.Set(reflect.ValueOf(buff))
+		case TypeObject:
+			obj := ToObject(jsValue)
+			goMap := reflect.MakeMap(reflect.MapOf(reflect.TypeFor[string](), reflect.TypeFor[any]()))
+			for keyName, value := range obj.Seq() {
+				valueOf := reflect.New(reflect.TypeFor[any]())
+				if err := valueFrom(value, valueOf); err != nil {
+					return err
+				}
+				goMap.SetMapIndex(reflect.ValueOf(keyName), valueOf)
+			}
+			ptr.Set(goMap)
+		case TypeFunction:
+			ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
 		}
-		return fmt.Errorf("cannot set Buffer to %s", ptr.Kind())
-	case TypeArrayBuffer:
-		if ptrType == reflect.TypeFor[[]byte]() {
-			buff, err := ToArrayBuffer(jsValue).Data()
+		return nil
+	case reflect.String:
+		if typeOf != TypeString {
+			break
+		}
+		valueOf, err := ToString(jsValue).Utf8Value()
+		if err != nil {
+			return err
+		}
+		ptr.Set(reflect.ValueOf(valueOf))
+		return nil
+	case reflect.Bool:
+		if typeOf != TypeBoolean {
+			break
+		}
+		b, err := ToBoolean(jsValue).Value()
+		if err != nil {
+			return err
+		}
+		ptr.Set(reflect.ValueOf(b))
+		return nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		switch typeOf {
+		case TypeNumber:
+			b, err := ToNumber(jsValue).Int()
 			if err != nil {
 				return err
 			}
-			ptr.SetBytes(buff)
+			ptr.SetInt(b)
 			return nil
-		}
-		return fmt.Errorf("cannot set ArrayBuffer to %s", ptr.Kind())
-	case TypeDataView:
-		if ptrType == reflect.TypeFor[[]byte]() {
-			arrbuff, err := ToDataView(jsValue).Buffer()
+		case TypeBigInt:
+			b, err := ToBigint(jsValue).Int64()
 			if err != nil {
 				return err
 			}
-			buff, err := arrbuff.Data()
+			ptr.SetInt(b)
+			return nil
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		switch typeOf {
+		case TypeNumber:
+			b, err := ToNumber(jsValue).Int()
 			if err != nil {
 				return err
 			}
-			ptr.SetBytes(buff)
+			ptr.SetUint(uint64(b))
+			return nil
+		case TypeBigInt:
+			b, err := ToBigint(jsValue).Int64()
+			if err != nil {
+				return err
+			}
+			ptr.SetUint(uint64(b))
 			return nil
 		}
-		return fmt.Errorf("cannot set DataView to %s", ptr.Kind())
-	case TypeObject:
+	case reflect.Float32, reflect.Float64:
+		if typeOf != TypeNumber {
+			break
+		}
+		f, err := ToNumber(jsValue).Float()
+		if err != nil {
+			return err
+		}
+		ptr.SetFloat(f)
+		return nil
+	case reflect.Func, reflect.Chan:
+		return nil
+	case reflect.Slice:
+		if typeOf != TypeArray {
+			break
+		}
+		jsArr := ToArray(jsValue)
+		size, err := jsArr.Length()
+		if err != nil {
+			return err
+		}
+		ptr.Set(reflect.MakeSlice(ptrType, size, size))
+		for index := range size {
+			jsValue, err := jsArr.Get(index)
+			if err != nil {
+				return err
+			} else if err = valueFrom(jsValue, ptr.Index(index)); err != nil {
+				return err
+			}
+		}
+	case reflect.Map:
+		// Check if key is string, bool, int*, uint*, float*, else return error
+		switch ptrType.Key().Kind() {
+		case reflect.String:
+		case reflect.Bool:
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		case reflect.Float32, reflect.Float64:
+		default:
+			return fmt.Errorf("cannot set Object ket to %s", ptr.Kind())
+		}
+
+		goMap := reflect.MakeMap(ptrType)
 		obj := ToObject(jsValue)
-		switch ptr.Kind() {
-		case reflect.Struct:
+		for keyName, value := range obj.Seq() {
+			keySetValue := reflect.New(ptrType.Key()).Elem()
+			switch ptrType.Key().Kind() {
+			case reflect.String:
+				keySetValue.SetString(keyName)
+			case reflect.Bool:
+				boolV, err := strconv.ParseBool(keyName)
+				if err != nil {
+					return err
+				}
+				keySetValue.SetBool(boolV)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				intV, err := strconv.ParseInt(keyName, 10, 64)
+				if err != nil {
+					return err
+				}
+				keySetValue.SetInt(intV)
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				intV, err := strconv.ParseUint(keyName, 10, 64)
+				if err != nil {
+					return err
+				}
+				keySetValue.SetUint(intV)
+			case reflect.Float32, reflect.Float64:
+				floatV, err := strconv.ParseFloat(keyName, 64)
+				if err != nil {
+					return err
+				}
+				keySetValue.SetFloat(floatV)
+			}
+
+			valueOf := reflect.New(ptrType.Elem()).Elem()
+			if err := valueFrom(value, valueOf); err != nil {
+				return err
+			}
+			goMap.SetMapIndex(keySetValue, valueOf)
+		}
+		ptr.Set(goMap)
+		return nil
+	case reflect.Struct:
+		switch typeOf {
+		case TypeString:
+			str, err := ToString(jsValue).Utf8Value()
+			if err != nil {
+				return err
+			}
+			switch {
+			case ptrType.ConvertibleTo(reflect.TypeFor[encoding.TextUnmarshaler]()):
+				return ptr.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(str))
+			case ptrType.ConvertibleTo(reflect.TypeFor[json.Unmarshaler]()):
+				var raw json.RawMessage
+				if err = json.Unmarshal([]byte(str), &raw); err == nil {
+					return ptr.Interface().(json.Unmarshaler).UnmarshalJSON(raw)
+				}
+			}
+		case TypeObject:
+			obj := ToObject(jsValue)
 			ptr.Set(reflect.New(ptrType).Elem())
 			for keyIndex := range ptrType.NumField() {
-				field, fieldType := ptr.Field(keyIndex), ptrType.Field(keyIndex)
+				fieldType := ptrType.Field(keyIndex)
 				if !fieldType.IsExported() || fieldType.Tag.Get(propertiesTagName) == "-" {
 					continue
 				}
 
-				keyName, omitEmpty, omitZero := fieldType.Name, false, false
-				if strings.Count(fieldType.Tag.Get(propertiesTagName), ",") > 0 {
-					fields := strings.SplitN(fieldType.Tag.Get(propertiesTagName), ",", 2)
-					keyName = fields[0]
-					switch fields[1] {
-					case "omitempty":
-						omitEmpty = true
-					case "omitzero":
-						omitZero = true
-					}
-				} else {
-					omitEmpty, omitZero = true, true
-				}
-
-				if ok, err := obj.Has(keyName); err != nil {
-					return err
-				} else if !ok && !(omitEmpty || omitZero) {
-					return fmt.Errorf("cannot set %s to %s", keyName, ptr.Kind())
-				}
-
-				value, err := obj.Get(keyName)
-				if err != nil {
-					return err
-				}
-
-				valueTypeof, _ := value.Type()
-				if omitEmpty || omitZero {
-					switch valueTypeof {
-					case TypeUndefined, TypeNull, TypeUnkown:
-						continue
-					case TypeString:
-						if str, _ := ToString(value).Utf8Value(); str == "" {
-							continue
-						}
-					case TypeDate:
-						if timeDate, _ := ToDate(value).Time(); timeDate.Unix() == 0 {
-							continue
-						}
-					case TypeBigInt:
-						if numberValue, _ := ToBigint(value).Int64(); numberValue == 0 {
-							continue
-						}
-					case TypeNumber:
-						if numberValue, _ := ToNumber(value).Int(); numberValue == 0 {
-							continue
-						}
-					case TypeArray:
-						if size, _ := ToArray(value).Length(); size == 0 {
-							continue
-						}
+				var keyName string
+				switch v := strings.TrimSpace(fieldType.Tag.Get(propertiesTagName)); v {
+				case "":
+					keyName = fieldType.Name
+				default:
+					keyName = v
+					if strings.Count(fieldType.Tag.Get(propertiesTagName), ",") > 0 {
+						fields := strings.SplitN(fieldType.Tag.Get(propertiesTagName), ",", 2)
+						keyName = fields[0]
 					}
 				}
+				if ok, _ := obj.Has(keyName); !ok {
+					continue
+				}
 
-				valueOf := reflect.New(fieldType.Type).Elem()
+				value, _ := obj.Get(keyName)
+				valueOf := reflect.New(fieldType.Type)
 				if err := valueFrom(value, valueOf); err != nil {
 					return err
 				}
-				field.Set(valueOf)
+				ptr.Field(keyIndex).Set(valueOf.Elem())
 			}
 			return nil
-		case reflect.Map:
-			// Check if key is string, bool, int*, uint*, float*, else return error
-			switch ptrType.Key().Kind() {
-			case reflect.String:
-			case reflect.Bool:
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			case reflect.Float32, reflect.Float64:
-			default:
-				return fmt.Errorf("cannot set Object ket to %s", ptr.Kind())
-			}
-
-			goMap := reflect.MakeMap(ptrType)
-			for keyName, value := range obj.Seq() {
-				keySetValue := reflect.New(ptrType.Key()).Elem()
-				switch ptrType.Key().Kind() {
-				case reflect.String:
-					keySetValue.SetString(keyName)
-				case reflect.Bool:
-					boolV, err := strconv.ParseBool(keyName)
-					if err != nil {
-						return err
-					}
-					keySetValue.SetBool(boolV)
-				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-					intV, err := strconv.ParseInt(keyName, 10, 64)
-					if err != nil {
-						return err
-					}
-					keySetValue.SetInt(intV)
-				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-					intV, err := strconv.ParseUint(keyName, 10, 64)
-					if err != nil {
-						return err
-					}
-					keySetValue.SetUint(intV)
-				case reflect.Float32, reflect.Float64:
-					floatV, err := strconv.ParseFloat(keyName, 64)
-					if err != nil {
-						return err
-					}
-					keySetValue.SetFloat(floatV)
-				}
-
-				valueOf := reflect.New(ptrType.Elem()).Elem()
-				if err := valueFrom(value, valueOf); err != nil {
-					return err
-				}
-				goMap.SetMapIndex(keySetValue, valueOf)
-			}
-			ptr.Set(goMap)
-			return nil
-		default:
-			return fmt.Errorf("cannot set Object to %s", ptr.Kind())
 		}
 	}
-
-	return nil
+	return fmt.Errorf("cannot set %s, to %s", typeOf, ptr.Kind())
 }

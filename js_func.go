@@ -101,11 +101,19 @@ func goValuesInFunc(ptr reflect.Value, jsArgs []ValueType, variadic bool) (value
 	// Convert value
 	values = make([]reflect.Value, size)
 	for index := range values {
-		valueOf := reflect.New(ptr.Type().In(index)) // Create value to append go value
-		if err := valueFrom(jsArgs[index], valueOf); err != nil {
+		// Create value to append go value
+		ptrType := ptr.Type().In(index)
+		switch ptrType.Kind() {
+		case reflect.Pointer:
+			values[index] = reflect.New(ptrType.Elem())
+		case reflect.Slice:
+			values[index] = reflect.MakeSlice(ptrType, 0, 0)
+		default:
+			values[index] = reflect.New(ptrType).Elem()
+		}
+		if err := valueFrom(jsArgs[index], values[index]); err != nil {
 			panic(err)
 		}
-		values[index] = valueOf.Elem()
 	}
 
 	if variadic {
