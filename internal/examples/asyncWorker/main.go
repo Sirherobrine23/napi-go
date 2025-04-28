@@ -1,36 +1,32 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
+	"fmt"
+	"time"
 	_ "unsafe"
 
 	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
-	"sirherobrine23.com.br/Sirherobrine23/napi-go/js"
 )
+
+var waitTime = time.Second * 3
 
 //go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
 func Register(env napi.EnvType, export *napi.Object) {
 	fn, _ := napi.CreateFunction(env, "", func(env napi.EnvType, _ napi.ValueType, args []napi.ValueType) (napi.ValueType, error) {
-		var a []any
-		for _, arg := range args {
-			var b any
-			if err := js.ValueFrom(arg, &b); err != nil {
-				return nil, err
-			}
-			a = append(a, b)
-		}
-		ctx := context.WithValue(context.Background(), "this", a)
-		async, err := napi.CreateAyncWorker(env, ctx, func(env napi.EnvType, ctx context.Context) {
-			a := ctx.Value("this")
-			d, _ := json.MarshalIndent(a, "", "  ")
-			println(string(d))
-		})
-		_ = async
-
-		return nil, err
+		var Test *napi.String
+		return napi.CreateAsyncWorker(env,
+			func(env napi.EnvType) {
+				fmt.Printf("Wait %s\n", waitTime)
+				<-time.After(waitTime)
+				println("wait time done on exec func")
+				Test, _ = napi.CreateString(env, "Test")
+			},
+			func(env napi.EnvType, Resolve, Reject func(value napi.ValueType)) {
+				println("Done, called done function")
+				Resolve(Test)
+			})
 	})
 	export.Set("async", fn)
 }

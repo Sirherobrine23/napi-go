@@ -414,33 +414,28 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 			return fmt.Errorf("cannot set number value to %s", ptr.Kind())
 		}
 	case napi.TypeString:
-		switch ptr.Kind() {
-		case reflect.String:
-		default:
-			return fmt.Errorf("cannot set string to %s", ptr.Kind())
-		}
 		str, err := napi.ToString(jsValue).Utf8Value()
 		if err != nil {
 			return err
 		}
-		ptr.Set(reflect.ValueOf(str))
-		return nil
+		switch {
+		case ptr.CanConvert(reflect.TypeFor[encoding.TextUnmarshaler]()):
+			return ptr.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(str))
+		case ptr.Kind() == reflect.String:
+			ptr.Set(reflect.ValueOf(str))
+			return nil
+		}
+		return fmt.Errorf("cannot set string to %s", ptr.Kind())
 	case napi.TypeDate:
-		switch ptrType.Kind() {
-		case reflect.Struct:
-			if ptrType == reflect.TypeFor[time.Time]() {
-				break
+		if ptrType == reflect.TypeFor[time.Time]() {
+			timeDate, err := napi.ToDate(jsValue).Time()
+			if err != nil {
+				return err
 			}
-			fallthrough
-		default:
-			return fmt.Errorf("cannot set Date to %s", ptr.Kind())
+			ptr.Set(reflect.ValueOf(timeDate))
+			return nil
 		}
-		timeDate, err := napi.ToDate(jsValue).Time()
-		if err != nil {
-			return err
-		}
-		ptr.Set(reflect.ValueOf(timeDate))
-		return nil
+		return fmt.Errorf("cannot set Date to %s", ptr.Kind())
 	case napi.TypeArray:
 		napiArray := napi.ToArray(jsValue)
 		size, err := napiArray.Length()
@@ -477,21 +472,15 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 			return fmt.Errorf("cannot set Array to %s", ptr.Kind())
 		}
 	case napi.TypeBuffer:
-		switch ptr.Kind() {
-		case reflect.Slice:
-			if ptrType == reflect.TypeFor[[]byte]() {
-				break
+		if ptrType == reflect.TypeFor[[]byte]() {
+			buff, err := napi.ToBuffer(jsValue).Data()
+			if err != nil {
+				return err
 			}
-			fallthrough
-		default:
-			return fmt.Errorf("cannot set Buffer to %s", ptr.Kind())
+			ptr.SetBytes(buff)
+			return nil
 		}
-		buff, err := napi.ToBuffer(jsValue).Data()
-		if err != nil {
-			return err
-		}
-		ptr.SetBytes(buff)
-		return nil
+		return fmt.Errorf("cannot set Buffer to %s", ptr.Kind())
 	case napi.TypeObject:
 		obj := napi.ToObject(jsValue)
 		switch ptr.Kind() {
@@ -572,7 +561,7 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			case reflect.Float32, reflect.Float64:
 			default:
-				return fmt.Errorf("cannot set Object to %s", ptr.Kind())
+				return fmt.Errorf("cannot set Object ket to %s", ptr.Kind())
 			}
 
 			goMap := reflect.MakeMap(ptrType)
@@ -618,8 +607,6 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 		default:
 			return fmt.Errorf("cannot set Object to %s", ptr.Kind())
 		}
-	default:
-		println(typeOf.String())
 	}
 
 	return nil
