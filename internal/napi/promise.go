@@ -12,7 +12,7 @@ type Deferred unsafe.Pointer
 func CreatePromise(env Env) (Value, Deferred, Status) {
 	var value Value
 	var deferred Deferred
-	
+
 	status := Status(C.napi_create_promise(
 		C.napi_env(env),
 		(*C.napi_deferred)(unsafe.Pointer(&deferred)),

@@ -95,3 +95,18 @@ func (vTyped TypedArrayType) String() string {
 		return "Unknown"
 	}
 }
+
+func (vTyped TypedArrayType) Size() int {
+	switch vTyped {
+	case TypedArrayInt8Array, TypedArrayUint8Array, TypedArrayUint8ClampedArray:
+		return 1
+	case TypedArrayInt16Array, TypedArrayUint16Array:
+		return 2
+	case TypedArrayInt32Array, TypedArrayUint32Array, TypedArrayFloat32Array:
+		return 4
+	case TypedArrayFloat64Array, TypedArrayBigInt64Array, TypedArrayBigUint64Array:
+		return 8
+	default:
+		return 0
+	}
+}

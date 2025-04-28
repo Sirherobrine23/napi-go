@@ -133,9 +133,10 @@ Now it's easier to convert types from go to Javascript, current conversions:
 - [x] Promise
   - [x] Async Worker
   - [x] Thread safe function
-- [ ] Typed Array
-  - [ ] Array buffer
-    - [ ] Dataview
+- [x] Array buffer
+- [x] Dataview
+- [x] Typed Array
+- [ ] Class
 
 and convert Javascript values to Go values
 
@@ -146,6 +147,7 @@ and convert Javascript values to Go values
 - [x] Boolean
 - [x] Interface (if is `any` set types map[string]any, []any or primitive values)
 - [ ] Function
-- [ ] Typed Array
-  - [ ] Array buffer
-    - [ ] Dataview
+- [x] Array buffer
+- [x] Typed Array
+- [x] Dataview
+- [ ] Class

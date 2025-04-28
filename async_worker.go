@@ -21,7 +21,7 @@ type (
 )
 
 // Create async worker to run in backgroud N-API code and return Promise
-// 
+//
 // On `exec` function dont storage Napi values create on, save in go values and return js values on `done` call.
 func CreateAsyncWorker(env EnvType, exec CallbackAsyncWorkerExec, done CallbackAsyncWorkerDone) (*AsyncWorker, error) {
 	promiseResult, err := CreatePromise(env)

@@ -217,9 +217,8 @@ func GetValueStringUtf16(env Env, value Value) ([]uint16, Status) {
 	if status != StatusOK {
 		return nil, status
 	}
-	runes := make([]uint16, strsize)
-	copy(runes, (*[1 << 30]uint16)(unsafe.Pointer(cstr))[:strsize:strsize])
-	return runes, status
+
+	return unsafe.Slice((*uint16)(cstr), strsize), status
 }
 
 func SetProperty(env Env, object, key, value Value) Status {
@@ -495,8 +494,7 @@ func GetBufferInfoData(env Env, value Value) (buff []byte, status Status) {
 	dataPtr := unsafe.Pointer(&data)
 	status = Status(C.napi_get_buffer_info(C.napi_env(env), C.napi_value(value), &dataPtr, &length))
 	if status == StatusOK {
-		buff = make([]byte, length)
-		copy(buff, (*[1 << 30]byte)(unsafe.Pointer(data))[:length:length])
+		buff = unsafe.Slice(data, length)
 	}
 	return
 }

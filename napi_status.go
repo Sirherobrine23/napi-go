@@ -25,11 +25,3 @@ func mustValueErr2[T any](input T, _ bool, status napi.Status) (T, error) {
 	}
 	return input, nil
 }
-
-// Process status to return error if StatusOK return nil on error
-func mustValueErr3[T, C any](input T, i2 C, status napi.Status) (T, C, error) {
-	if status != napi.StatusOK {
-		return input, i2, napi.StatusError(status)
-	}
-	return input, i2, nil
-}

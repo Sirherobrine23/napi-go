@@ -18,7 +18,6 @@ const (
 	Blocking    ThreadsafeFunctionCallMode    = C.napi_tsfn_blocking
 )
 
-
 func CreateThreadsafeFunction(env Env, fn, asyncResource, asyncResourceName Value, maxQueueSize, initialThreadCount int) (ThreadsafeFunction, Status) {
 	var result ThreadsafeFunction
 	status := Status(C.napi_create_threadsafe_function(

@@ -26,6 +26,7 @@ func ValueFrom(napiValue ValueType, v any) error {
 	return valueFrom(napiValue, ptr.Elem())
 }
 
+// Convert go types to valid NAPI, if not conpatible return Undefined.
 func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 	defer func(err *error) {
 		if err2 := recover(); err2 != nil {
@@ -244,12 +245,10 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 		case TypeFunction:
 			ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
 		case TypeExternal:
-			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+			ptr.Set(reflect.ValueOf(ToExternal(jsValue)))
 		case TypeTypedArray:
-			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+			ptr.Set(reflect.ValueOf(ToTypedArray(jsValue)))
 		case TypePromise:
-			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
-		case TypeDataView:
 			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
 		case TypeBuffer:
 			ptr.Set(reflect.ValueOf(ToBuffer(jsValue)))
@@ -258,7 +257,9 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 		case TypeArray:
 			ptr.Set(reflect.ValueOf(ToArray(jsValue)))
 		case TypeArrayBuffer:
-			// ptr.Set(reflect.ValueOf(ToArray(jsValue)))
+			ptr.Set(reflect.ValueOf(ToArrayBuffer(jsValue)))
+		case TypeDataView:
+			ptr.Set(reflect.ValueOf(ToDataView(jsValue)))
 		case TypeError:
 			ptr.Set(reflect.ValueOf(ToError(jsValue)))
 		}
@@ -479,6 +480,30 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 			return nil
 		}
 		return fmt.Errorf("cannot set Buffer to %s", ptr.Kind())
+	case TypeArrayBuffer:
+		if ptrType == reflect.TypeFor[[]byte]() {
+			buff, err := ToArrayBuffer(jsValue).Data()
+			if err != nil {
+				return err
+			}
+			ptr.SetBytes(buff)
+			return nil
+		}
+		return fmt.Errorf("cannot set ArrayBuffer to %s", ptr.Kind())
+	case TypeDataView:
+		if ptrType == reflect.TypeFor[[]byte]() {
+			arrbuff, err := ToDataView(jsValue).Buffer()
+			if err != nil {
+				return err
+			}
+			buff, err := arrbuff.Data()
+			if err != nil {
+				return err
+			}
+			ptr.SetBytes(buff)
+			return nil
+		}
+		return fmt.Errorf("cannot set DataView to %s", ptr.Kind())
 	case TypeObject:
 		obj := ToObject(jsValue)
 		switch ptr.Kind() {
