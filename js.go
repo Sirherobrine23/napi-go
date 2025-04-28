@@ -1,4 +1,4 @@
-package js
+package napi
 
 import (
 	"encoding"
@@ -8,19 +8,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 )
 
 const propertiesTagName = "napi"
 
 // Convert go types to valid NAPI, if not conpatible return Undefined.
-func ValueOf(env napi.EnvType, value any) (napiValue napi.ValueType, err error) {
+func ValueOf(env EnvType, value any) (napiValue ValueType, err error) {
 	return valueOf(env, reflect.ValueOf(value))
 }
 
 // Convert NAPI value to Go values
-func ValueFrom(napiValue napi.ValueType, v any) error {
+func ValueFrom(napiValue ValueType, v any) error {
 	ptr := reflect.ValueOf(v)
 	if ptr.Kind() != reflect.Pointer {
 		return fmt.Errorf("require point to convert napi value to go value")
@@ -28,7 +26,7 @@ func ValueFrom(napiValue napi.ValueType, v any) error {
 	return valueFrom(napiValue, ptr.Elem())
 }
 
-func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err error) {
+func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 	defer func(err *error) {
 		if err2 := recover(); err2 != nil {
 			switch v := err2.(type) {
@@ -41,9 +39,9 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 	}(&err)
 
 	ptrType := ptr.Type()
-	if ptrType.ConvertibleTo(reflect.TypeFor[napi.ValueType]()) {
+	if ptrType.ConvertibleTo(reflect.TypeFor[ValueType]()) {
 		if ptr.IsValid() {
-			return ptr.Interface().(napi.ValueType), nil
+			return ptr.Interface().(ValueType), nil
 		}
 		return nil, nil
 	} else if !ptr.IsValid() {
@@ -51,13 +49,13 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 	} else if !ptr.IsZero() && ptr.CanInterface() { // Marshalers
 		switch v := ptr.Interface().(type) {
 		case time.Time:
-			return napi.CreateDate(env, v)
+			return CreateDate(env, v)
 		case encoding.TextMarshaler:
 			data, err := v.MarshalText()
 			if err != nil {
 				return nil, err
 			}
-			return napi.CreateString(env, string(data))
+			return CreateString(env, string(data))
 		case json.Marshaler:
 			var pointData any
 			data, err := v.MarshalJSON()
@@ -74,19 +72,19 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 	case reflect.Pointer:
 		return valueOf(env, ptr.Elem())
 	case reflect.String:
-		return napi.CreateString(env, ptr.String())
+		return CreateString(env, ptr.String())
 	case reflect.Bool:
-		return napi.CreateBoolean(env, ptr.Bool())
+		return CreateBoolean(env, ptr.Bool())
 	case reflect.Int, reflect.Uint, reflect.Int32, reflect.Uint32, reflect.Float32, reflect.Int8, reflect.Uint8, reflect.Int16, reflect.Uint16:
-		return napi.CreateNumber(env, ptr.Int())
+		return CreateNumber(env, ptr.Int())
 	case reflect.Float64:
-		return napi.CreateNumber(env, ptr.Float())
+		return CreateNumber(env, ptr.Float())
 	case reflect.Int64, reflect.Uint64:
-		return napi.CreateBigint(env, ptr.Int())
+		return CreateBigint(env, ptr.Int())
 	case reflect.Func:
 		return funcOf(env, ptr)
 	case reflect.Slice, reflect.Array:
-		arr, err := napi.CreateArray(env, ptr.Len())
+		arr, err := CreateArray(env, ptr.Len())
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +98,7 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 		}
 		return arr, nil
 	case reflect.Struct:
-		obj, err := napi.CreateObject(env)
+		obj, err := CreateObject(env)
 		if err != nil {
 			return nil, err
 		}
@@ -128,10 +126,10 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 				switch fields[1] {
 				case "omitempty":
 					switch typeof {
-					case napi.TypeUndefined, napi.TypeNull, napi.TypeUnkown:
+					case TypeUndefined, TypeNull, TypeUnkown:
 						continue
-					case napi.TypeString:
-						str, err := napi.ToString(value).Utf8Value()
+					case TypeString:
+						str, err := ToString(value).Utf8Value()
 						if err != nil {
 							return nil, err
 						} else if str == "" {
@@ -140,31 +138,31 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 					}
 				case "omitzero":
 					switch typeof {
-					case napi.TypeUndefined, napi.TypeNull, napi.TypeUnkown:
+					case TypeUndefined, TypeNull, TypeUnkown:
 						continue
-					case napi.TypeDate:
-						value, err := napi.ToDate(value).Time()
+					case TypeDate:
+						value, err := ToDate(value).Time()
 						if err != nil {
 							return nil, err
 						} else if value.Unix() == 0 {
 							continue
 						}
-					case napi.TypeBigInt:
-						value, err := napi.ToBigint(value).Int64()
+					case TypeBigInt:
+						value, err := ToBigint(value).Int64()
 						if err != nil {
 							return nil, err
 						} else if value == 0 {
 							continue
 						}
-					case napi.TypeNumber:
-						value, err := napi.ToNumber(value).Int()
+					case TypeNumber:
+						value, err := ToNumber(value).Int()
 						if err != nil {
 							return nil, err
 						} else if value == 0 {
 							continue
 						}
-					case napi.TypeArray:
-						value, err := napi.ToArray(value).Length()
+					case TypeArray:
+						value, err := ToArray(value).Length()
 						if err != nil {
 							return nil, err
 						} else if value == 0 {
@@ -180,7 +178,7 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 
 		return obj, nil
 	case reflect.Map:
-		obj, err := napi.CreateObject(env)
+		obj, err := CreateObject(env)
 		if err != nil {
 			return nil, err
 		}
@@ -210,59 +208,59 @@ func valueOf(env napi.EnvType, ptr reflect.Value) (napiValue napi.ValueType, err
 }
 
 // Convert javascript value to go typed value
-func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
+func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 	typeOf, err := jsValue.Type()
 	if err != nil {
 		return err
 	}
 
 	ptrType := ptr.Type()
-	if ptrType.ConvertibleTo(reflect.TypeFor[napi.ValueType]()) {
+	if ptrType.ConvertibleTo(reflect.TypeFor[ValueType]()) {
 		switch typeOf {
-		case napi.TypeUndefined:
+		case TypeUndefined:
 			und, err := jsValue.Env().Undefined()
 			if err != nil {
 				return err
 			}
 			ptr.Set(reflect.ValueOf(und))
-		case napi.TypeNull:
+		case TypeNull:
 			null, err := jsValue.Env().Null()
 			if err != nil {
 				return err
 			}
 			ptr.Set(reflect.ValueOf(null))
-		case napi.TypeBoolean:
-			ptr.Set(reflect.ValueOf(napi.ToBoolean(jsValue)))
-		case napi.TypeNumber:
-			ptr.Set(reflect.ValueOf(napi.ToNumber(jsValue)))
-		case napi.TypeBigInt:
-			ptr.Set(reflect.ValueOf(napi.ToBigint(jsValue)))
-		case napi.TypeString:
-			ptr.Set(reflect.ValueOf(napi.ToString(jsValue)))
-		case napi.TypeSymbol:
-			// ptr.Set(reflect.ValueOf(napi.ToString(jsValue)))
-		case napi.TypeObject:
-			ptr.Set(reflect.ValueOf(napi.ToObject(jsValue)))
-		case napi.TypeFunction:
-			ptr.Set(reflect.ValueOf(napi.ToFunction(jsValue)))
-		case napi.TypeExternal:
-			// ptr.Set(reflect.ValueOf(napi.ToFunction(jsValue)))
-		case napi.TypeTypedArray:
-			// ptr.Set(reflect.ValueOf(napi.ToFunction(jsValue)))
-		case napi.TypePromise:
-			// ptr.Set(reflect.ValueOf(napi.ToFunction(jsValue)))
-		case napi.TypeDataView:
-			// ptr.Set(reflect.ValueOf(napi.ToFunction(jsValue)))
-		case napi.TypeBuffer:
-			ptr.Set(reflect.ValueOf(napi.ToBuffer(jsValue)))
-		case napi.TypeDate:
-			ptr.Set(reflect.ValueOf(napi.ToDate(jsValue)))
-		case napi.TypeArray:
-			ptr.Set(reflect.ValueOf(napi.ToArray(jsValue)))
-		case napi.TypeArrayBuffer:
-			// ptr.Set(reflect.ValueOf(napi.ToArray(jsValue)))
-		case napi.TypeError:
-			ptr.Set(reflect.ValueOf(napi.ToError(jsValue)))
+		case TypeBoolean:
+			ptr.Set(reflect.ValueOf(ToBoolean(jsValue)))
+		case TypeNumber:
+			ptr.Set(reflect.ValueOf(ToNumber(jsValue)))
+		case TypeBigInt:
+			ptr.Set(reflect.ValueOf(ToBigint(jsValue)))
+		case TypeString:
+			ptr.Set(reflect.ValueOf(ToString(jsValue)))
+		case TypeSymbol:
+			// ptr.Set(reflect.ValueOf(ToString(jsValue)))
+		case TypeObject:
+			ptr.Set(reflect.ValueOf(ToObject(jsValue)))
+		case TypeFunction:
+			ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+		case TypeExternal:
+			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+		case TypeTypedArray:
+			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+		case TypePromise:
+			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+		case TypeDataView:
+			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+		case TypeBuffer:
+			ptr.Set(reflect.ValueOf(ToBuffer(jsValue)))
+		case TypeDate:
+			ptr.Set(reflect.ValueOf(ToDate(jsValue)))
+		case TypeArray:
+			ptr.Set(reflect.ValueOf(ToArray(jsValue)))
+		case TypeArrayBuffer:
+			// ptr.Set(reflect.ValueOf(ToArray(jsValue)))
+		case TypeError:
+			ptr.Set(reflect.ValueOf(ToError(jsValue)))
 		}
 		return nil
 	}
@@ -274,41 +272,41 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 		// Check if is any and can set
 		if ptr.CanSet() && ptrType == reflect.TypeFor[any]() {
 			switch typeOf {
-			case napi.TypeNull, napi.TypeUndefined, napi.TypeUnkown:
+			case TypeNull, TypeUndefined, TypeUnkown:
 				ptr.Set(reflect.Zero(ptrType))
 				return nil
-			case napi.TypeBoolean:
-				valueOf, err := napi.ToBoolean(jsValue).Value()
+			case TypeBoolean:
+				valueOf, err := ToBoolean(jsValue).Value()
 				if err != nil {
 					return err
 				}
 				ptr.Set(reflect.ValueOf(valueOf))
-			case napi.TypeNumber:
-				numberValue, err := napi.ToNumber(jsValue).Float()
+			case TypeNumber:
+				numberValue, err := ToNumber(jsValue).Float()
 				if err != nil {
 					return err
 				}
 				ptr.Set(reflect.ValueOf(numberValue))
-			case napi.TypeBigInt:
-				numberValue, err := napi.ToBigint(jsValue).Int64()
+			case TypeBigInt:
+				numberValue, err := ToBigint(jsValue).Int64()
 				if err != nil {
 					return err
 				}
 				ptr.Set(reflect.ValueOf(numberValue))
-			case napi.TypeString:
-				str, err := napi.ToString(jsValue).Utf8Value()
+			case TypeString:
+				str, err := ToString(jsValue).Utf8Value()
 				if err != nil {
 					return err
 				}
 				ptr.Set(reflect.ValueOf(str))
-			case napi.TypeDate:
-				timeDate, err := napi.ToDate(jsValue).Time()
+			case TypeDate:
+				timeDate, err := ToDate(jsValue).Time()
 				if err != nil {
 					return err
 				}
 				ptr.Set(reflect.ValueOf(timeDate))
-			case napi.TypeArray:
-				napiArray := napi.ToArray(jsValue)
+			case TypeArray:
+				napiArray := ToArray(jsValue)
 				size, err := napiArray.Length()
 				if err != nil {
 					return err
@@ -323,14 +321,14 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 					}
 				}
 				ptr.Set(value)
-			case napi.TypeBuffer:
-				buff, err := napi.ToBuffer(jsValue).Data()
+			case TypeBuffer:
+				buff, err := ToBuffer(jsValue).Data()
 				if err != nil {
 					return err
 				}
 				ptr.Set(reflect.ValueOf(buff))
-			case napi.TypeObject:
-				obj := napi.ToObject(jsValue)
+			case TypeObject:
+				obj := ToObject(jsValue)
 				goMap := reflect.MakeMap(reflect.MapOf(reflect.TypeFor[string](), reflect.TypeFor[any]()))
 				for keyName, value := range obj.Seq() {
 					valueOf := reflect.New(reflect.TypeFor[any]())
@@ -340,8 +338,8 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 					goMap.SetMapIndex(reflect.ValueOf(keyName), valueOf)
 				}
 				ptr.Set(goMap)
-			case napi.TypeFunction:
-				ptr.Set(reflect.ValueOf(napi.ToFunction(jsValue)))
+			case TypeFunction:
+				ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
 			}
 			return nil
 		}
@@ -349,7 +347,7 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 	}
 
 	switch typeOf {
-	case napi.TypeNull, napi.TypeUndefined, napi.TypeUnkown:
+	case TypeNull, TypeUndefined, TypeUnkown:
 		switch ptrType.Kind() {
 		case reflect.Interface, reflect.Pointer:
 			ptr.Set(reflect.Zero(ptrType))
@@ -357,10 +355,10 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 		default:
 			return fmt.Errorf("cannot set value, returned %s", typeOf)
 		}
-	case napi.TypeBoolean:
+	case TypeBoolean:
 		switch ptr.Kind() {
 		case reflect.Bool:
-			valueOf, err := napi.ToBoolean(jsValue).Value()
+			valueOf, err := ToBoolean(jsValue).Value()
 			if err != nil {
 				return err
 			}
@@ -368,24 +366,24 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 		default:
 			return fmt.Errorf("cannot set boolean value to %s", ptr.Kind())
 		}
-	case napi.TypeNumber:
+	case TypeNumber:
 		switch ptrType.Kind() {
 		case reflect.Float32, reflect.Float64:
-			floatValue, err := napi.ToNumber(jsValue).Float()
+			floatValue, err := ToNumber(jsValue).Float()
 			if err != nil {
 				return err
 			}
 			ptr.SetFloat(floatValue)
 			return nil
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			numberValue, err := napi.ToNumber(jsValue).Int()
+			numberValue, err := ToNumber(jsValue).Int()
 			if err != nil {
 				return err
 			}
 			ptr.SetInt(numberValue)
 			return nil
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			numberValue, err := napi.ToNumber(jsValue).Int()
+			numberValue, err := ToNumber(jsValue).Int()
 			if err != nil {
 				return err
 			}
@@ -394,17 +392,17 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 		default:
 			return fmt.Errorf("cannot set number value to %s", ptr.Kind())
 		}
-	case napi.TypeBigInt:
+	case TypeBigInt:
 		switch ptrType.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			numberValue, err := napi.ToNumber(jsValue).Int()
+			numberValue, err := ToNumber(jsValue).Int()
 			if err != nil {
 				return err
 			}
 			ptr.SetInt(numberValue)
 			return nil
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			numberValue, err := napi.ToNumber(jsValue).Int()
+			numberValue, err := ToNumber(jsValue).Int()
 			if err != nil {
 				return err
 			}
@@ -413,8 +411,8 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 		default:
 			return fmt.Errorf("cannot set number value to %s", ptr.Kind())
 		}
-	case napi.TypeString:
-		str, err := napi.ToString(jsValue).Utf8Value()
+	case TypeString:
+		str, err := ToString(jsValue).Utf8Value()
 		if err != nil {
 			return err
 		}
@@ -426,9 +424,9 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 			return nil
 		}
 		return fmt.Errorf("cannot set string to %s", ptr.Kind())
-	case napi.TypeDate:
+	case TypeDate:
 		if ptrType == reflect.TypeFor[time.Time]() {
-			timeDate, err := napi.ToDate(jsValue).Time()
+			timeDate, err := ToDate(jsValue).Time()
 			if err != nil {
 				return err
 			}
@@ -436,8 +434,8 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 			return nil
 		}
 		return fmt.Errorf("cannot set Date to %s", ptr.Kind())
-	case napi.TypeArray:
-		napiArray := napi.ToArray(jsValue)
+	case TypeArray:
+		napiArray := ToArray(jsValue)
 		size, err := napiArray.Length()
 		if err != nil {
 			return err
@@ -471,9 +469,9 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 		default:
 			return fmt.Errorf("cannot set Array to %s", ptr.Kind())
 		}
-	case napi.TypeBuffer:
+	case TypeBuffer:
 		if ptrType == reflect.TypeFor[[]byte]() {
-			buff, err := napi.ToBuffer(jsValue).Data()
+			buff, err := ToBuffer(jsValue).Data()
 			if err != nil {
 				return err
 			}
@@ -481,8 +479,8 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 			return nil
 		}
 		return fmt.Errorf("cannot set Buffer to %s", ptr.Kind())
-	case napi.TypeObject:
-		obj := napi.ToObject(jsValue)
+	case TypeObject:
+		obj := ToObject(jsValue)
 		switch ptr.Kind() {
 		case reflect.Struct:
 			ptr.Set(reflect.New(ptrType).Elem())
@@ -520,26 +518,26 @@ func valueFrom(jsValue napi.ValueType, ptr reflect.Value) error {
 				valueTypeof, _ := value.Type()
 				if omitEmpty || omitZero {
 					switch valueTypeof {
-					case napi.TypeUndefined, napi.TypeNull, napi.TypeUnkown:
+					case TypeUndefined, TypeNull, TypeUnkown:
 						continue
-					case napi.TypeString:
-						if str, _ := napi.ToString(value).Utf8Value(); str == "" {
+					case TypeString:
+						if str, _ := ToString(value).Utf8Value(); str == "" {
 							continue
 						}
-					case napi.TypeDate:
-						if timeDate, _ := napi.ToDate(value).Time(); timeDate.Unix() == 0 {
+					case TypeDate:
+						if timeDate, _ := ToDate(value).Time(); timeDate.Unix() == 0 {
 							continue
 						}
-					case napi.TypeBigInt:
-						if numberValue, _ := napi.ToBigint(value).Int64(); numberValue == 0 {
+					case TypeBigInt:
+						if numberValue, _ := ToBigint(value).Int64(); numberValue == 0 {
 							continue
 						}
-					case napi.TypeNumber:
-						if numberValue, _ := napi.ToNumber(value).Int(); numberValue == 0 {
+					case TypeNumber:
+						if numberValue, _ := ToNumber(value).Int(); numberValue == 0 {
 							continue
 						}
-					case napi.TypeArray:
-						if size, _ := napi.ToArray(value).Length(); size == 0 {
+					case TypeArray:
+						if size, _ := ToArray(value).Length(); size == 0 {
 							continue
 						}
 					}

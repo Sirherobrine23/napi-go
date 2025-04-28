@@ -7,7 +7,6 @@ import (
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
-	"sirherobrine23.com.br/Sirherobrine23/napi-go/js"
 )
 
 type Test struct {
@@ -46,13 +45,13 @@ func RegisterNapi(env napi.EnvType, export *napi.Object) {
 		},
 	}
 
-	napiStruct, err := js.ValueOf(env, toGoReflect)
+	napiStruct, err := napi.ValueOf(env, toGoReflect)
 	if err != nil {
 		panic(err)
 	}
 	export.Set("goStruct", napiStruct)
 
-	fnCall, err := js.GoFuncOf(env, func(call ...any) (string, error) {
+	fnCall, err := napi.GoFuncOf(env, func(call ...any) (string, error) {
 		d, err := json.MarshalIndent(call, "", "  ")
 		if err == nil {
 			println(string(d))
@@ -64,7 +63,7 @@ func RegisterNapi(env napi.EnvType, export *napi.Object) {
 	}
 	export.Set("printAny", fnCall)
 
-	fnCallStruct, err := js.GoFuncOf(env, func(call ...Test) (string, error) {
+	fnCallStruct, err := napi.GoFuncOf(env, func(call ...Test) (string, error) {
 		d, err := json.MarshalIndent(call, "", "  ")
 		if err == nil {
 			println(string(d))

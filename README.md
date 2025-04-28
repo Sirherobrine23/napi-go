@@ -132,7 +132,7 @@ Now it's easier to convert types from go to Javascript, current conversions:
 - [x] Interface (interface if is `any` and not nil)
 - [x] Promise
   - [x] Async Worker
-  - [ ] Thread safe function
+  - [x] Thread safe function
 - [ ] Typed Array
   - [ ] Array buffer
     - [ ] Dataview

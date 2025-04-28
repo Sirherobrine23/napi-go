@@ -1,4 +1,4 @@
-package js
+package napi
 
 import (
 	"fmt"
@@ -6,16 +6,15 @@ import (
 	"runtime"
 	"strings"
 
-	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 	internalNapi "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
 // Create napi bind to golang functions
-func GoFuncOf(env napi.EnvType, function any) (napi.ValueType, error) {
+func GoFuncOf(env EnvType, function any) (ValueType, error) {
 	return funcOf(env, reflect.ValueOf(function))
 }
 
-func funcOf(env napi.EnvType, ptr reflect.Value) (napi.ValueType, error) {
+func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 	if ptr.Kind() != reflect.Func {
 		return nil, fmt.Errorf("return function to return napi value")
 	} else if !ptr.IsValid() {
@@ -29,12 +28,12 @@ func funcOf(env napi.EnvType, ptr reflect.Value) (napi.ValueType, error) {
 
 	funcName := strings.ReplaceAll(runtime.FuncForPC(ptr.Pointer()).Name(), ".", "_")
 	switch v := ptr.Interface().(type) {
-	case napi.Callback: // return function value
-		return napi.CreateFunction(env, funcName, v)
+	case Callback: // return function value
+		return CreateFunction(env, funcName, v)
 	case internalNapi.Callback: // return internal/napi function value
-		return napi.CreateFunctionNapi(env, funcName, v)
+		return CreateFunctionNapi(env, funcName, v)
 	default: // Convert go function to javascript function
-		return napi.CreateFunction(env, funcName, func(env napi.EnvType, this napi.ValueType, args []napi.ValueType) (napi.ValueType, error) {
+		return CreateFunction(env, funcName, func(env EnvType, this ValueType, args []ValueType) (ValueType, error) {
 			fnType := ptr.Type()
 			returnValues := []reflect.Value{}
 			switch {
@@ -66,7 +65,7 @@ func funcOf(env napi.EnvType, ptr reflect.Value) (napi.ValueType, error) {
 				}
 
 				// Create array
-				arr, err := napi.CreateArray(env, len(returnValues))
+				arr, err := CreateArray(env, len(returnValues))
 				if err != nil {
 					return nil, err
 				}
@@ -87,7 +86,7 @@ func funcOf(env napi.EnvType, ptr reflect.Value) (napi.ValueType, error) {
 }
 
 // Create call value to go function
-func goValuesInFunc(ptr reflect.Value, jsArgs []napi.ValueType, variadic bool) (values []reflect.Value) {
+func goValuesInFunc(ptr reflect.Value, jsArgs []ValueType, variadic bool) (values []reflect.Value) {
 	if variadic && (ptr.Type().NumIn()-1 > 0) && ptr.Type().NumIn()-1 < len(jsArgs) {
 		panic(fmt.Errorf("require minimun %d arguments, called with %d", ptr.Type().NumIn()-1, len(jsArgs)))
 	} else if !variadic && ptr.Type().NumIn() != len(jsArgs) {
