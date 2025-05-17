@@ -11,15 +11,21 @@ type Date struct{ value }
 // Convert [ValueType] to [*Date]
 func ToDate(o ValueType) *Date { return &Date{o} }
 
-func CreateDate(env EnvType, date time.Time) (*Date, error) {
-	value, err := mustValueErr(napi.CreateDate(env.NapiValue(), float64(date.UnixMilli())))
+// CreateDate creates a new JavaScript Date object in the given N-API environment
+// using the provided Go time.Time value. It returns a pointer to a Date wrapper
+// or an error if the creation fails.
+func CreateDate(env EnvType, t time.Time) (*Date, error) {
+	value, err := mustValueErr(napi.CreateDate(env.NapiValue(), float64(t.UnixMilli())))
 	if err != nil {
 		return nil, err
 	}
-	return &Date{value: &Value{env: env, valueOf: value}}, nil
+	return &Date{value: &_Value{env: env, valueOf: value}}, nil
 }
 
-// Get time from [*Date] object.
+// Time returns the Go time.Time representation of the Date value.
+// It retrieves the date value from the underlying N-API environment,
+// converts it to a Unix millisecond timestamp, and constructs a time.Time object.
+// If an error occurs during value retrieval or conversion, it is returned.
 func (d Date) Time() (time.Time, error) {
 	timeFloat, err := mustValueErr(napi.GetDateValue(d.NapiEnv(), d.NapiValue()))
 	if err != nil {

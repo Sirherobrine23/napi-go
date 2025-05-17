@@ -12,12 +12,16 @@ import (
 
 const propertiesTagName = "napi"
 
-// Convert go types to valid NAPI, if not conpatible return Undefined.
+// ValueOf converts a Go value to its corresponding N-API value representation.
+// It takes an environment handle (env) and a Go value (value) of any type,
+// and returns the resulting N-API value (napiValue) or an error if the conversion fails.
 func ValueOf(env EnvType, value any) (napiValue ValueType, err error) {
 	return valueOf(env, reflect.ValueOf(value))
 }
 
-// Convert NAPI value to Go values
+// ValueFrom converts a N-API value (napiValue) to a Go value and stores the result in v.
+// The v parameter must be a pointer to the target Go variable where the converted value will be stored.
+// Returns an error if v is not a pointer or if the conversion fails.
 func ValueFrom(napiValue ValueType, v any) error {
 	ptr := reflect.ValueOf(v)
 	if ptr.Kind() != reflect.Pointer {
@@ -245,7 +249,7 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 		case TypeString:
 			ptr.Set(reflect.ValueOf(ToString(jsValue)))
 		case TypeSymbol:
-			// ptr.Set(reflect.ValueOf(ToString(jsValue)))
+			// ptr.Set(reflect.ValueOf(ToSymbol(jsValue)))
 		case TypeObject:
 			ptr.Set(reflect.ValueOf(ToObject(jsValue)))
 		case TypeFunction:
@@ -255,7 +259,7 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 		case TypeTypedArray:
 			ptr.Set(reflect.ValueOf(ToTypedArray(jsValue)))
 		case TypePromise:
-			// ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+			// ptr.Set(reflect.ValueOf(ToPromise(jsValue)))
 		case TypeBuffer:
 			ptr.Set(reflect.ValueOf(ToBuffer(jsValue)))
 		case TypeDate:

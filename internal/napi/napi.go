@@ -1,3 +1,4 @@
+// N-API used by [sirherobrine23.com.br/Sirherobrine23/napi-go], only use in internal, don't export
 package napi
 
 /*

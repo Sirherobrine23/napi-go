@@ -2,7 +2,7 @@ package main
 
 import (
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
-	entry "sirherobrine23.com.br/Sirherobrine23/napi-go/entry/binding"
+	entry "sirherobrine23.com.br/Sirherobrine23/napi-go/module/binding"
 )
 
 func init() {

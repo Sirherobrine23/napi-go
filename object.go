@@ -100,15 +100,31 @@ func (obj *Object) InstanceOf(value ValueType) (bool, error) {
 	return mustValueErr(napi.InstanceOf(obj.NapiEnv(), obj.NapiValue(), value.NapiValue()))
 }
 
-// Freeze object.
+// This method freezes a given object.
+//
+// This prevents new properties from being added to it,
+// existing properties from being removed,
+// prevents changing the enumerability,
+// configurability, or writability of existing properties,
+// and prevents the values of existing properties from being changed.
+//
+// It also prevents the object's prototype from being changed.
 func (obj *Object) Freeze() error {
 	return singleMustValueErr(napi.ObjectFreeze(obj.NapiEnv(), obj.NapiValue()))
 }
 
+// This method seals a given object.
+//
+// This prevents new properties from being added to it,
+// as well as marking all existing properties as non-configurable.
 func (obj *Object) Seal() error {
 	return singleMustValueErr(napi.ObjectSeal(obj.NapiEnv(), obj.NapiValue()))
 }
 
+// Seq returns an iterator (Seq2) over the object's property names and their corresponding values.
+// It retrieves all property names of the object, and for each property, yields the property's name as a string
+// and its associated ValueType. If an error occurs while retrieving property names or values, the function panics.
+// The iteration stops if the yield function returns false.
 func (obj *Object) Seq() iter.Seq2[string, ValueType] {
 	keys, err := obj.GetPropertyNames()
 	if err != nil {
@@ -131,4 +147,36 @@ func (obj *Object) Seq() iter.Seq2[string, ValueType] {
 			}
 		}
 	}
+}
+
+// Copy from iter to Object
+func (obj *Object) From(from iter.Seq2[any, any]) (err error) {
+	for key, value := range from {
+		// Get value of value
+		var valueSet ValueType
+		switch v := value.(type) {
+		case ValueType:
+			valueSet = v
+		default:
+			if valueSet, err = ValueOf(obj.Env(), v); err != nil {
+				return
+			}
+		}
+
+		// Set value to object
+		switch v := key.(type) {
+		case ValueType:
+			if err = obj.SetWithValue(v, valueSet); err != nil {
+				return
+			}
+		default:
+			if keySet, err := ValueOf(obj.Env(), v); err != nil {
+				return err
+			} else if err = obj.SetWithValue(keySet, valueSet); err != nil {
+				return err
+			}
+		}
+	}
+
+	return
 }

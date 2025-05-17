@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	_ "unsafe"
 
-	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
+	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 )
