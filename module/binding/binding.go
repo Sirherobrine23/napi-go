@@ -1,11 +1,13 @@
 // Export values to Javascript
+//
+// Deprecated: Use [sirherobrine23.com.br/Sirherobrine23/napi-go/entry] to linking, in final release this module ar to remove
 package entry
 
 import (
 	_ "unsafe"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
-	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
+	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
 )
 
 type registerCallback func(env napi.EnvType, object *napi.Object)

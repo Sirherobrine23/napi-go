@@ -9,7 +9,11 @@ import (
 	internalNapi "sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
-// Create napi bind to golang functions
+var typeofError = reflect.TypeFor[error]()
+
+// GoFuncOf wraps a Go function as a JavaScript-compatible function for use with the given environment.
+// It takes an EnvType representing the JavaScript environment and a Go function (of any type).
+// Returns a ValueType representing the JavaScript function and an error if the wrapping fails.
 func GoFuncOf(env EnvType, function any) (ValueType, error) {
 	return funcOf(env, reflect.ValueOf(function))
 }
@@ -34,53 +38,54 @@ func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 		return CreateFunctionNapi(env, funcName, v)
 	default: // Convert go function to javascript function
 		return CreateFunction(env, funcName, func(env EnvType, this ValueType, args []ValueType) (ValueType, error) {
-			fnType := ptr.Type()
-			returnValues := []reflect.Value{}
+			var goFnReturn []reflect.Value
+			in, out, veridict := ptr.Type().NumIn(), ptr.Type().NumOut(), ptr.Type().IsVariadic()
+
+			// Check to call
 			switch {
-			case fnType.NumIn() == 0 && fnType.NumOut() == 0: // only call
-				returnValues = ptr.Call([]reflect.Value{})
-			case !fnType.IsVariadic(): // call same args
-				returnValues = ptr.Call(goValuesInFunc(ptr, args, false))
+			case in == 0 && out == 0: // only call
+				goFnReturn = ptr.Call([]reflect.Value{})
+			case !veridict: // call same args
+				goFnReturn = ptr.Call(goValuesInFunc(ptr, args, false))
 			default: // call with slice on end
-				returnValues = ptr.CallSlice(goValuesInFunc(ptr, args, true))
+				goFnReturn = ptr.CallSlice(goValuesInFunc(ptr, args, true))
+			}
+
+			// Check for last element is error
+			if len(goFnReturn) > 0 {
+				lastValue := goFnReturn[len(goFnReturn)-1]
+				if lastValue.CanConvert(typeofError) {
+					goFnReturn = goFnReturn[:len(goFnReturn)-1] // remove last element from return
+					if !lastValue.IsNil() {                           // check if not is nil to throw error in javascript
+						return nil, lastValue.Interface().(error)
+					}
+				}
 			}
 
 			// Check return value
-		retry:
-			switch len(returnValues) {
+			switch len(goFnReturn) {
 			case 0: // not value to return
 				return env.Undefined()
 			case 1: // Check if error or value to return
-				return valueOf(env, returnValues[0])
-			default: // Convert to array return and check if latest is error
-				lastValue := returnValues[len(returnValues)-1]
-				if lastValue.CanConvert(reflect.TypeFor[error]()) {
-					returnValues = returnValues[:len(returnValues)-1]
-					if !lastValue.IsNil() {
-						if err := lastValue.Interface().(error); err != nil {
-							return nil, err
-						}
-					}
-					goto retry
-				}
+				return valueOf(env, goFnReturn[0])
+			}
 
-				// Create array
-				arr, err := CreateArray(env, len(returnValues))
+			// Convert to array return and check if latest is error
+			napiValueReturn, err := CreateArray(env, len(goFnReturn))
+			if err != nil {
+				return nil, err
+			}
+
+			// Append values to js array
+			for index, value := range goFnReturn {
+				napiValue, err := valueOf(env, value)
 				if err != nil {
 					return nil, err
+				} else if err = napiValueReturn.Set(index, napiValue); err != nil {
+					return nil, err
 				}
-
-				// Append values to js array
-				for index, value := range returnValues {
-					napiValue, err := valueOf(env, value)
-					if err != nil {
-						return nil, err
-					} else if err = arr.Set(index, napiValue); err != nil {
-						return nil, err
-					}
-				}
-				return arr, nil
 			}
+			return napiValueReturn, nil
 		})
 	}
 }

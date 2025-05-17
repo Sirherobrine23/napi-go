@@ -2,6 +2,13 @@
 
 A Go library for building Node.js Native Addons using Node-API.
 
+>[!IMPORTANT]
+>
+> This module require [`CGO`](https://pkg.go.dev/cmd/cgo), to cross-compile check cgo documentation.
+>
+> My recommendation is to use a Linux distribution with the GCC installed together with the Required Destinations,
+> or use [`zig`](https://ziglang.org/download/)(C: `zig cc -target <target>`, C++: `zig c++ -target <target>`)
+
 ## Usage
 
 Get module with `go get -u sirherobrine23.com.br/Sirherobrine23/napi-go@latest`
@@ -17,7 +24,7 @@ import (
 	_ "unsafe"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
-	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
+	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/js"
 )
 
@@ -91,26 +98,6 @@ func RegisterNapi(env napi.EnvType, export *napi.Object) {
 func main() {}
 ```
 
-or in old style
-
-```go
-package main
-
-import (
-	"sirherobrine23.com.br/Sirherobrine23/napi-go"
-	"sirherobrine23.com.br/Sirherobrine23/napi-go/entry/binding" // Old style
-)
-
-func init() {
-	entry.Register(func(env napi.EnvType, export *napi.Object) {
-		fromGoValue, _ := napi.CreateString(env, "hello from golang")
-		export.Set("test", fromGoValue)
-	})
-}
-
-func main() {}
-```
-
 Finally, build the Node.js addon using `go build`:
 
 ```sh
@@ -121,7 +108,14 @@ se more examples in [internal/examples](internal/examples)
 
 ## Go bind
 
-Now it's easier to convert types from go to Javascript, current conversions:
+Now there are some new functions that convert values ​​from Golang to JavaScript and Versa-Versa.
+
+They are the:
+
+- `ValueOf`: Convert go values to Javascript values.
+- `ValueFrom` Convert Javascript values to Golang values.
+
+### From Go to Javascript:
 
 - [x] Function
 - [x] Struct, Map
@@ -132,13 +126,13 @@ Now it's easier to convert types from go to Javascript, current conversions:
 - [x] Interface (interface if is `any` and not nil)
 - [x] Promise
   - [x] Async Worker
-  - [x] Thread safe function
+  - [ ] Thread safe function
 - [x] Array buffer
 - [x] Dataview
 - [x] Typed Array
 - [ ] Class
 
-and convert Javascript values to Go values
+### Convert from Javascript values to Go
 
 - [x] Struct, Map
 - [x] Slice and Array
@@ -146,8 +140,8 @@ and convert Javascript values to Go values
 - [x] Int*, Uint* and Float
 - [x] Boolean
 - [x] Interface (if is `any` set types map[string]any, []any or primitive values)
-- [ ] Function
 - [x] Array buffer
 - [x] Typed Array
 - [x] Dataview
+- [ ] Function
 - [ ] Class

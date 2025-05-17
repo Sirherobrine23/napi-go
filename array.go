@@ -71,6 +71,39 @@ func (arr *Array) Seq() iter.Seq[ValueType] {
 	}
 }
 
+// Populates the Array with elements from the provided iterator sequence.
+// For each element in the sequence, it converts the value to ValueType if necessary,
+// and appends it to the end of the Array. If an error occurs during conversion or insertion,
+// the operation stops and the error is returned.
+// Returns error if an error if any occurs during value conversion or insertion; otherwise, nil.
+func (arr *Array) From(from iter.Seq[any]) (err error) {
+	var currentLength int
+	for value := range from {
+		// Get NAPI value
+		var valueOf ValueType
+		switch v := value.(type) {
+		case ValueType:
+			valueOf = v
+		default:
+			if valueOf, err = ValueOf(arr.Env(), v); err != nil {
+				return
+			}
+		}
+
+		// Get value to last element
+		if currentLength, err = arr.Length(); err != nil {
+			break
+		} else if err = arr.Set(currentLength, valueOf); err != nil {
+			break
+		}
+	}
+	return
+}
+
+// Append adds one or more values to the end of the array.
+// It accepts a variadic number of ValueType arguments and appends each to the array,
+// starting from the current length. If an error occurs during the append operation,
+// it returns the error; otherwise, it returns nil.
 func (arr *Array) Append(values ...ValueType) error {
 	length, err := arr.Length()
 	if err != nil {

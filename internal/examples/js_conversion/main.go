@@ -6,7 +6,7 @@ import (
 	_ "unsafe"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
-	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/entry"
+	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
 )
 
 type Test struct {

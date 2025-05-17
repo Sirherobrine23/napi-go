@@ -6,23 +6,28 @@ import (
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
+// function to run code in background without locker Loop event
+type CallbackAsyncWorkerExec func(env EnvType)
+
+// Funtion to run after exec code
+type CallbackAsyncWorkerDone func(env EnvType, Resolve, Reject func(value ValueType))
+
+// AsyncWorker encapsulates an asynchronous worker for executing tasks in a separate thread
+// using Node.js N-API. It embeds a value type and manages the lifecycle of an async work
+// operation, including its associated promise for JavaScript interoperability.
 type AsyncWorker struct {
 	value
 	asyncWork       napi.AsyncWork
 	promiseDeferred napi.Deferred
 }
 
-type (
-	// function to run code in background without locker Loop event
-	CallbackAsyncWorkerExec func(env EnvType)
-
-	// Funtion to run after exec code
-	CallbackAsyncWorkerDone func(env EnvType, Resolve, Reject func(value ValueType))
-)
-
-// Create async worker to run in backgroud N-API code and return Promise
+// CreateAsyncWorker creates an asynchronous worker that executes the provided exec function in a separate thread,
+// and calls the done callback upon completion. It returns an AsyncWorker instance and a promise that can be used
+// to track the asynchronous operation from JavaScript.
 //
-// On `exec` function dont storage Napi values create on, save in go values and return js values on `done` call.
+// The promise is resolved or rejected based on the outcome of the async operation. If an error or panic occurs
+// during execution, the promise is rejected with the corresponding error. If the async worker is cancelled, the
+// promise is also rejected.
 func CreateAsyncWorker(env EnvType, exec CallbackAsyncWorkerExec, done CallbackAsyncWorkerDone) (*AsyncWorker, error) {
 	promiseResult, err := CreatePromise(env)
 	if err != nil {
@@ -117,6 +122,8 @@ func CreateAsyncWorker(env EnvType, exec CallbackAsyncWorkerExec, done CallbackA
 	}, nil
 }
 
+// Cancel attempts to cancel the asynchronous work associated with the AsyncWorker.
+// It returns an error if the cancellation fails or if the async work cannot be cancelled.
 func (async *AsyncWorker) Cancel() error {
 	return napi.CancelAsyncWork(async.NapiEnv(), async.asyncWork).ToError()
 }
