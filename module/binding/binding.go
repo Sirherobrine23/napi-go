@@ -14,7 +14,7 @@ type registerCallback func(env napi.EnvType, object *napi.Object)
 
 var modFuncInit = []registerCallback{}
 
-//go:linkname start sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
+//go:linkname start sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func start(env napi.EnvType, export *napi.Object) {
 	for _, registerCall := range modFuncInit {
 		registerCall(env, export)

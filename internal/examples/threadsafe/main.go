@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 	_ "unsafe"
 
@@ -9,24 +10,33 @@ import (
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 )
 
-var waitTime = time.Second * 3
-
-//go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
+//go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func Register(env napi.EnvType, export *napi.Object) {
-	thr, err := napi.CreateThreadsafeFunction(
-		env,
-		func(env napi.EnvType, this napi.ValueType, args []napi.ValueType) (napi.ValueType, error) {
-			return nil, nil
-		},
-		"thr",
-		0,
-		1,
-		func(env napi.EnvType, jsCallback *napi.Function, data any) {
-			println("called 2")
-		},
-		nil,
-		nil,
-	)
+	jsFunc := napi.Callback(func(env napi.EnvType, this napi.ValueType, args []napi.ValueType) (napi.ValueType, error) {
+		var waitTime = time.Second * 3
+
+		if len(args) == 1 {
+			if typof, _ := args[0].Type(); typof == napi.TypeNumber {
+				wait := napi.As[*napi.Number](args[0])
+				_waitTime, _ := wait.Int()
+				waitTime = time.Duration(_waitTime)
+			}
+		}
+
+		fmt.Printf("Called JS, waiting %s\n", waitTime)
+		<-time.After(waitTime)
+		return nil, nil
+	})
+
+	jsEnd := napi.ThreadsafeFunctionFinalizeCallback(func(env napi.EnvType, context any) {
+		println("Called go func end")
+	})
+
+	callJSCallback := napi.ThreadsafeFunctionCallJSCallback(func(env napi.EnvType, jsCallback *napi.Function, data any) {
+		println("Called callJSCallback")
+	})
+
+	thr, err := napi.CreateThreadsafeFunction(env, jsFunc, jsEnd, callJSCallback, "thr", 0, 1, nil)
 	if err != nil {
 		panic(err)
 	}

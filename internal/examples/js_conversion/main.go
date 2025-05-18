@@ -15,7 +15,7 @@ type Test struct {
 	Sub    []any
 }
 
-//go:linkname RegisterNapi sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
+//go:linkname RegisterNapi sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func RegisterNapi(env napi.EnvType, export *napi.Object) {
 	inNode, _ := napi.CreateString(env, "from golang napi string")
 	inNode2, _ := napi.CopyBuffer(env, []byte{1, 0, 244, 21})

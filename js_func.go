@@ -56,7 +56,7 @@ func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 				lastValue := goFnReturn[len(goFnReturn)-1]
 				if lastValue.CanConvert(typeofError) {
 					goFnReturn = goFnReturn[:len(goFnReturn)-1] // remove last element from return
-					if !lastValue.IsNil() {                           // check if not is nil to throw error in javascript
+					if !lastValue.IsNil() {                     // check if not is nil to throw error in javascript
 						return nil, lastValue.Interface().(error)
 					}
 				}

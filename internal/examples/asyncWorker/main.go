@@ -12,7 +12,7 @@ import (
 
 var waitTime = time.Second * 3
 
-//go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
+//go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func Register(env napi.EnvType, export *napi.Object) {
 	fn, _ := napi.CreateFunction(env, "", func(env napi.EnvType, _ napi.ValueType, args []napi.ValueType) (napi.ValueType, error) {
 		var Test *napi.String

@@ -88,7 +88,7 @@ func initializeModule(cEnv C.napi_env, cExports C.napi_value) C.napi_value {
 //
 //	func main() {}
 //
-//	//go:linkname register sirherobrine23.com.br/Sirherobrine23/napi-go/entry.Register
+//	//go:linkname register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 //	func register(env napi.EnvType, export *napi.Object) {
 //		str, _ := napi.CreateString(env, "hello from Gopher")
 //		export.Set("msg", str)
