@@ -12,12 +12,12 @@ import (
 
 //go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func Register(env napi.EnvType, export *napi.Object) {
-	jsFunc := napi.Callback(func(env napi.EnvType, this napi.ValueType, args []napi.ValueType) (napi.ValueType, error) {
+	jsFunc := napi.Callback(func(ci *napi.CallbackInfo) (napi.ValueType, error) {
 		var waitTime = time.Second * 3
 
-		if len(args) == 1 {
-			if typof, _ := args[0].Type(); typof == napi.TypeNumber {
-				wait := napi.As[*napi.Number](args[0])
+		if len(ci.Args) == 1 {
+			if typof, _ := ci.Args[0].Type(); typof == napi.TypeNumber {
+				wait := napi.As[*napi.Number](ci.Args[0])
 				_waitTime, _ := wait.Int()
 				waitTime = time.Duration(_waitTime)
 			}
