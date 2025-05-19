@@ -37,7 +37,7 @@ func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 	case internalNapi.Callback: // return internal/napi function value
 		return CreateFunctionNapi(env, funcName, v)
 	default: // Convert go function to javascript function
-		return CreateFunction(env, funcName, func(env EnvType, this ValueType, args []ValueType) (ValueType, error) {
+		return CreateFunction(env, funcName, func(ci *CallbackInfo) (ValueType, error) {
 			var goFnReturn []reflect.Value
 			in, out, veridict := ptr.Type().NumIn(), ptr.Type().NumOut(), ptr.Type().IsVariadic()
 
@@ -46,9 +46,9 @@ func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 			case in == 0 && out == 0: // only call
 				goFnReturn = ptr.Call([]reflect.Value{})
 			case !veridict: // call same args
-				goFnReturn = ptr.Call(goValuesInFunc(ptr, args, false))
+				goFnReturn = ptr.Call(goValuesInFunc(ptr, ci.Args, false))
 			default: // call with slice on end
-				goFnReturn = ptr.CallSlice(goValuesInFunc(ptr, args, true))
+				goFnReturn = ptr.CallSlice(goValuesInFunc(ptr, ci.Args, true))
 			}
 
 			// Check for last element is error
