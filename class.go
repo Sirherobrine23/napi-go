@@ -3,77 +3,123 @@ package napi
 import (
 	"fmt"
 	"reflect"
-	"unsafe"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
 )
 
-type (
-	PropertyDescriptor = napi.PropertyDescriptor
-	
-	ClassType interface {
-		Contructor(env EnvType, this ValueType, args []ValueType) (*Object, error)
-	}
+type Class[T ClassType] struct {
+	value
+	Class T
+}
 
-	Class[T ClassType] struct {
-		value
-		Class        T
-		classReflect reflect.Type
-	}
-)
+type PropertyAttributes int
+
+type PropertyDescriptor struct {
+	Name       string
+	Method     Callback
+	Getter     Callback
+	Setter     Callback
+	Value      ValueType
+	Attributes PropertyAttributes
+}
+
+// Base to class declaration
+type ClassType interface {
+	Contructor(*CallbackInfo) (*Object, error)
+}
+
+var ClassFuncMathod = reflect.TypeFor[Callback]()
 
 const (
-	PropertyAttributesDefault           = napi.Default
-	PropertyAttributesWritable          = napi.Writable
-	PropertyAttributesEnumerable        = napi.Enumerable
-	PropertyAttributesConfigurable      = napi.Configurable
-	PropertyAttributesStatic            = napi.Static
-	PropertyAttributesDefaultMethod     = napi.DefaultMethod
-	PropertyAttributesDefaultJSProperty = napi.DefaultJSProperty
+	PropertyAttributesWritable          = PropertyAttributes(napi.Writable)
+	PropertyAttributesEnumerable        = PropertyAttributes(napi.Enumerable)
+	PropertyAttributesConfigurable      = PropertyAttributes(napi.Configurable)
+	PropertyAttributesStatic            = PropertyAttributes(napi.Static)
+	PropertyAttributesDefault           = PropertyAttributes(napi.Default)
+	PropertyAttributesDefaultMethod     = PropertyAttributes(napi.DefaultMethod)
+	PropertyAttributesDefaultJSProperty = PropertyAttributes(napi.DefaultJSProperty)
 )
 
-func CreateClass[T ClassType](env EnvType, propertys []PropertyDescriptor) (*Class[T], error) {
+func CreateClass[T ClassType](env EnvType) (*Class[T], error) {
 	ptrType := reflect.TypeFor[T]()
 	switch ptrType.Kind() {
-	case reflect.Struct:
-	case reflect.Pointer:
-		if ptrType = ptrType.Elem(); ptrType.Kind() != reflect.Struct {
-			return nil, fmt.Errorf("type %s is not a struct", ptrType.Name())
-		}
 	default:
 		return nil, fmt.Errorf("type %s is not a struct", ptrType.Name())
+	case reflect.Pointer:
+		elem := ptrType.Elem()
+		if elem.Kind() == reflect.Struct {
+			return classMount[T](env, elem)
+		}
+		fallthrough
+	case reflect.Struct:
+		return classMount[T](env, ptrType)
+	}
+}
+
+func classMount[T ClassType](env EnvType, ptr reflect.Type) (*Class[T], error) {
+	valueOf := reflect.New(ptr)
+
+	var propertys []*PropertyDescriptor
+	for methodIndex := range ptr.NumMethod() {
+		method := ptr.Method(methodIndex)
+		if method.Type.Kind() != reflect.Func || !method.IsExported() {
+			continue
+		} else if !method.Type.Implements(ClassFuncMathod) {
+			continue
+		} else if method.Name == "Contructor" {
+			continue
+		}
+
+		propertys = append(propertys, &PropertyDescriptor{
+			Name:       method.Name,
+			Attributes: PropertyAttributes(PropertyAttributesStatic),
+			Method:     valueOf.Method(methodIndex).Interface().(Callback),
+			Getter:     nil,
+			Setter:     nil,
+			Value:      nil,
+		})
 	}
 
-	startStruct := &Class[T]{classReflect: ptrType}
-	value, status := napi.DefineClass(env.NapiValue(), ptrType.Name(),
-		func(env napi.Env, info napi.CallbackInfo) napi.Value {
-			startStruct.Class = reflect.New(ptrType).Interface().(T)
-			cbInfo, status := napi.GetCbInfo(env, info)
-			if err := status.ToError(); err != nil {
-				ThrowError(N_APIEnv(env), "", err.Error())
-				return nil
-			}
+	var napiAtr []napi.PropertyDescriptor
+	for _, value := range propertys {
+		name, err := CreateString(env, value.Name)
+		if err != nil {
+			return nil, err
+		}
 
-			gonapiEnv := N_APIEnv(env)
-			this := N_APIValue(gonapiEnv, cbInfo.This)
-			args := make([]ValueType, len(cbInfo.Args))
-			for i, cbArg := range cbInfo.Args {
-				args[i] = N_APIValue(gonapiEnv, cbArg)
-			}
+		method, err := CreateFunction(env, value.Name, value.Method)
+		if err != nil {
+			return nil, err
+		}
 
-			res, err := startStruct.Class.Contructor(gonapiEnv, this, args)
-			if err != nil {
-				ThrowError(gonapiEnv, "", err.Error())
-			} else if res == nil {
-				und, _ := gonapiEnv.Undefined()
-				return und.NapiValue()
-			}
-			napi.Wrap(env, res.NapiValue(), unsafe.Pointer(startStruct), nil, nil)
-			return res.NapiValue()
-		}, propertys)
+		napiAtr = append(napiAtr, napi.PropertyDescriptor{
+			Utf8name:   value.Name,
+			Name:       name.NapiValue(),
+			Method:     method.NapiCallback(),
+			Attributes: napi.PropertyAttributes(value.Attributes),
+		})
+	}
+
+	jsConstruct, err := CreateFunction(env, "constructor", func(ci *CallbackInfo) (ValueType, error) {
+		res := valueOf.MethodByName("Contructor").Call([]reflect.Value{reflect.ValueOf(ci)})
+		obj, err := res[0].Interface().(*Object), res[1].Interface().(error)
+		return N_APIValue(obj.Env(), obj.NapiValue()), err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	jsValue, status := napi.DefineClass(env.NapiValue(), ptr.Name(),
+		jsConstruct.fn,
+		napiAtr,
+	)
+
 	if err := status.ToError(); err != nil {
 		return nil, err
 	}
-	startStruct.value = N_APIValue(env, value)
-	return startStruct, nil
+
+	return &Class[T]{
+		value: N_APIValue(env, jsValue),
+		Class: valueOf.Interface().(T),
+	}, nil
 }
