@@ -204,6 +204,104 @@ test('Promise Then/Catch/Finally adopt results and propagate JavaScript/Go failu
   assert.throws(() => addon.builtinPromise(Promise.resolve(), 'invalid'), /requires a Go function/);
 });
 
+for (const method of ['then', 'catch', 'finally']) {
+  test(`Promise ${method} with nil handlers creates a distinct chain and preserves settlement`, async () => {
+    const value = { method };
+    const source = Promise.resolve(value);
+    const chained = addon.builtinPromiseChain(source, method);
+    assert(chained instanceof Promise);
+    assert.notEqual(chained, source);
+    assert.equal(await chained, value);
+
+    const reason = new Error(`${method} rejection`);
+    const rejected = Promise.reject(reason);
+    const propagated = addon.builtinPromiseChain(rejected, method);
+    assert.notEqual(propagated, rejected);
+    await assert.rejects(propagated, error => error === reason);
+  });
+}
+
+test('Promise chains keep asynchronous reactions and adopt callback results', async () => {
+  const order = [];
+  const source = Promise.resolve(23);
+  const chained = addon.builtinPromiseChain(source, 'then', value => {
+    order.push('callback');
+    assert.equal(value, 23);
+    return { then(resolve) { resolve(42); } };
+  });
+  order.push('returned');
+  assert.deepEqual(order, ['returned']);
+  assert.equal(await chained, 42);
+  assert.deepEqual(order, ['returned', 'callback']);
+
+  const reason = new Error('handler failure');
+  await assert.rejects(addon.builtinPromiseChain(Promise.resolve(), 'then', () => { throw reason; }), error => error === reason);
+  assert.equal(await addon.builtinPromiseChain(Promise.reject(reason), 'catch', error => {
+    assert.equal(error, reason);
+    return Promise.resolve('recovered');
+  }), 'recovered');
+});
+
+test('Promise Finally waits for cleanup and propagates its failures', async () => {
+  let finish;
+  let called = false;
+  let settled = false;
+  const cleanup = new Promise(resolve => { finish = resolve; });
+  const chained = addon.builtinPromiseChain(Promise.resolve('kept'), 'finally', (...args) => {
+    assert.equal(args.length, 0);
+    called = true;
+    return cleanup;
+  });
+  chained.then(() => { settled = true; });
+  await Promise.resolve();
+  assert(called);
+  assert.equal(settled, false);
+  finish('ignored');
+  assert.equal(await chained, 'kept');
+
+  const original = new Error('original rejection');
+  const replacement = new Error('cleanup failure');
+  await assert.rejects(addon.builtinPromiseChain(Promise.reject(original), 'finally', () => {}), error => error === original);
+  await assert.rejects(addon.builtinPromiseChain(Promise.resolve('kept'), 'finally', () => { throw replacement; }), error => error === replacement);
+  await assert.rejects(addon.builtinPromiseChain(Promise.reject(original), 'finally', () => Promise.reject(replacement)), error => error === replacement);
+});
+
+test('Promise Catch calls the native method without a property-existence probe or fallback', async () => {
+  let invoked = 0;
+  const p = Promise.resolve('kept');
+  p.catch = function (callback) {
+    assert.equal(this, p);
+    assert.equal(callback, undefined);
+    invoked++;
+    return Promise.prototype.catch.call(this, callback);
+  };
+  assert.equal(await addon.builtinPromiseChain(p, 'catch'), 'kept');
+  assert.equal(invoked, 1);
+
+  const noProbe = Promise.resolve('no probe');
+  Object.setPrototypeOf(noProbe, new Proxy(Promise.prototype, {
+    has() { throw new Error('unexpected property-existence probe'); },
+  }));
+  assert.equal(await addon.builtinPromiseChain(noProbe, 'catch', () => 'unused'), 'no probe');
+
+  const missing = Promise.resolve('missing');
+  Object.setPrototypeOf(missing, { then: Promise.prototype.then });
+  assert.throws(() => addon.builtinPromiseChain(missing, 'catch', () => 'unused'), /property "catch".*expected function/);
+});
+
+test('Promise methods preserve getter exceptions and reject invalid handlers or results', () => {
+  for (const method of ['then', 'catch', 'finally']) {
+    const marker = new Error(`${method} getter`);
+    const p = Promise.resolve();
+    Object.defineProperty(p, method, { get() { throw marker; } });
+    assert.throws(() => addon.builtinPromiseChain(p, method, () => {}), error => error === marker);
+    assert.throws(() => addon.builtinPromiseChain(Promise.resolve(), method, 23), /callback must be a function/);
+    const invalid = Promise.resolve();
+    invalid[method] = () => 23;
+    assert.throws(() => addon.builtinPromiseChain(invalid, method, () => {}), /expected Promise/);
+  }
+});
+
 test('timers deliver arguments after returning and run Go callbacks on the Node thread', async () => {
   let returned = false;
   await new Promise(resolve => {

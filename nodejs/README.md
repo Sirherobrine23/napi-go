@@ -81,7 +81,11 @@ can pipe to/from Go I/O through `CopyTo`/`CopyFrom`, returning JS Promises.
 or Resolve/Reject methods. It can be returned directly to JS for `await`, or
 chained on the Node thread through `Then`, `Catch` and `Finally`. These methods
 accept Go functions/Callbacks or existing JS functions. A literal nil handler
-in `Then` is omitted. A returned Promise is adopted; errors reject the chain.
+is passed as JS `undefined`: `Then(nil, nil)`, `Catch(nil)` and `Finally(nil)`
+create new chains that preserve the original value or rejection. Non-nil
+handlers must be functions. A returned Promise is adopted; errors reject the
+chain. `Catch` calls the object's `catch` method directly, preserving overrides
+and lookup exceptions; a missing method is an error.
 
 ```go
 files, err := fs.LoadPromises(ci.Env)

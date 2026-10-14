@@ -341,6 +341,29 @@ func registerBuiltins(env napi.EnvType, export *napi.Object) {
 			return nil, fmt.Errorf("unknown promise case")
 		}
 	})
+	bind("builtinPromiseChain", func(ci *napi.CallbackInfo) (napi.ValueType, error) {
+		p, err := nodejs.ToPromise(ci.Args[0])
+		if err != nil {
+			return nil, err
+		}
+		method := must(napi.ArgAs[string](ci, 1))
+		var handlers [2]any
+		for index := range handlers {
+			if len(ci.Args) > index+2 {
+				handlers[index] = ci.Args[index+2]
+			}
+		}
+		switch method {
+		case "then":
+			return p.Then(handlers[0], handlers[1])
+		case "catch":
+			return p.Catch(handlers[0])
+		case "finally":
+			return p.Finally(handlers[0])
+		default:
+			return nil, fmt.Errorf("unknown promise method %q", method)
+		}
+	})
 	bind("builtinTimer", func(ci *napi.CallbackInfo) (napi.ValueType, error) {
 		m := must(timers.Load(ci.Env))
 		mode := must(napi.ArgAs[string](ci, 1))

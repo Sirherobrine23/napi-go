@@ -27,7 +27,7 @@ JS_TESTS := internal/integration/integration.cjs internal/integration/eventemitt
 all: build
 
 build:
-	$(GO) build ./...
+	$(GO) build -v ./...
 
 examples: $(EXAMPLE_ADDONS)
 

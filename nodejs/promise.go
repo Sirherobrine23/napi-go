@@ -35,13 +35,26 @@ func (module *Module) CallPromise(name string, args ...any) (*Promise, error) {
 
 // Then attaches Go or JS functions. A literal nil handler is omitted. A Callback
 // may return a Go-created napi Promise or a nodejs Promise to adopt its result.
+// Both handlers may be nil: the new chain forwards the original settlement.
 func (promise *Promise) Then(fulfilled, rejected any) (*Promise, error) {
-	if fulfilled == nil && rejected == nil {
-		return promise, fmt.Errorf("add one of functions")
-	}
+	return promise.chain("then", fulfilled, rejected)
+}
 
-	args := make([]any, 2)
-	for index, handler := range []any{fulfilled, rejected} {
+// Catch invokes this Promise's catch method. A literal nil handler forwards
+// the original settlement to the returned chain.
+func (promise *Promise) Catch(rejected any) (*Promise, error) {
+	return promise.chain("catch", rejected)
+}
+
+// Finally invokes this Promise's finally method. A literal nil callback forwards
+// the original settlement without running cleanup.
+func (promise *Promise) Finally(callback any) (*Promise, error) {
+	return promise.chain("finally", callback)
+}
+
+func (promise *Promise) chain(method string, handlers ...any) (*Promise, error) {
+	args := make([]any, len(handlers))
+	for index, handler := range handlers {
 		if handler != nil {
 			fn, err := CallbackOf(promise.Env(), handler)
 			if err != nil {
@@ -50,34 +63,9 @@ func (promise *Promise) Then(fulfilled, rejected any) (*Promise, error) {
 			args[index] = fn
 		}
 	}
-	value, err := promise.CallMethod("then", args...)
-	if err != nil {
-		return nil, err
-	}
-	return ToPromise(value)
-}
-
-func (promise *Promise) Catch(rejected any) (*Promise, error) {
-	if hasCatch, err := promise.Has("catch"); err == nil && hasCatch && rejected != nil {
-		fn, err := CallbackOf(promise.Env(), rejected)
-		if err != nil {
-			return nil, err
-		}
-		value, err := promise.CallMethod("catch", fn)
-		if err != nil {
-			return nil, err
-		}
-		return ToPromise(value)
-	}
-	return promise.Then(nil, rejected)
-}
-
-func (promise *Promise) Finally(callback any) (*Promise, error) {
-	fn, err := CallbackOf(promise.Env(), callback)
-	if err != nil {
-		return nil, err
-	}
-	value, err := promise.CallMethod("finally", fn)
+	// Call directly: checking Has first can invoke extra JS traps, and falling
+	// back to another method would hide missing methods or lookup failures.
+	value, err := promise.CallMethod(method, args...)
 	if err != nil {
 		return nil, err
 	}
