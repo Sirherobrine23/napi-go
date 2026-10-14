@@ -245,3 +245,60 @@ go build ./...
 go test ./...
 GOEXPERIMENT=cgocheck2 go test ./internal/integration
 ```
+
+## Background tasks and EventEmitter
+
+The [EventEmitter example](internal/examples/eventemitter) processes values in a
+Go goroutine and sends `progress`, `done` and `error` packets through a bounded
+TSFN queue. JavaScript relays packets to an `EventEmitter` on its owning Node
+thread. Register listeners before calling `start`:
+
+```js
+const BackgroundTask = require('./internal/examples/eventemitter/index.cjs');
+const task = new BackgroundTask();
+task.on('progress', data => console.log(data));
+task.once('done', result => console.log(result));
+task.on('error', error => console.error(error));
+task.start(10);
+```
+
+The queue retains the JavaScript callback until finalization, so the callback
+can capture its emitter. Send immutable Go-owned data through `Call`; do not
+call `Function.Call` or other JavaScript APIs directly from the goroutine.
+`EventEmitter` listeners still run synchronously on the Node thread.
+
+The integration suite additionally covers an existing
+`emitter.emit.bind(emitter)` through a custom TSFN callback that expands the
+event name and arguments. It verifies producer ordering, payloads, finalization,
+empty tasks, error delivery, cancellation and Worker ownership.
+
+## Makefile
+
+```sh
+make build                 # compile all Go packages
+make examples              # build/*.node: class, threadsafe, eventemitter
+node internal/examples/eventemitter/index.cjs
+make test                  # all packages and both Node integration suites
+make test-eventemitter     # only the EventEmitter tests
+make test-js               # both Node suites against build/integration.node
+make test-cgo-check        # integration with GOEXPERIMENT=cgocheck2
+make check                 # build + test + strict cgo checks
+make test-race              # instrument the native addon with -race
+make clean                 # remove the known generated addons/headers
+```
+
+For an official Node headers archive, `NODE_INCLUDE` must point at its `include`
+directory, whose child is `node/node_api.h`; it must not point at `include/node`.
+Existing `CGO_CPPFLAGS` and `CGO_CFLAGS` are preserved:
+
+```sh
+make NODE_INCLUDE=/path/to/node-headers/include check
+make GO=/path/to/go NODE=/path/to/node BUILD_DIR=out examples test-js
+```
+
+`GO_TEST_FLAGS` defaults to `-count=1` so Makefile test targets execute the Node
+suites instead of returning a cached result. For example, use
+`make GO_TEST_FLAGS='-count=1 -timeout=4m' test-integration` for a slower builder.
+Missing Node is reported as a failed check. `make vet` stays separate because
+of the preexisting raw-finalizer warnings described in
+[the validation report](docs/class-threadsafe-validation.md).

@@ -36,8 +36,8 @@ const (
 
 // These errors support errors.Is without importing internal/napi.
 var (
-	ErrThreadsafeFunctionClosing   error = napi.StatusError(napi.StatusClosing)
-	ErrThreadsafeFunctionQueueFull error = napi.StatusError(napi.StatusQueueFull)
+	ErrThreadsafeFunctionClosing   error = napi.StatusClosing.ToError()
+	ErrThreadsafeFunctionQueueFull error = napi.StatusQueueFull.ToError()
 )
 
 // A finalizer runs once after the queue is drained. env may be nil at teardown;

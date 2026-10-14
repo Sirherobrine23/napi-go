@@ -68,3 +68,34 @@ accessors valid. Wrapped instance data is collected independently.
 All JavaScript values retain Node-API's environment/thread/handle-scope lifetime.
 Do not retain raw `Class`/`Function` handles across callbacks without a native
 reference, or send JavaScript handles (including in containers) as queue data.
+
+## Incremental EventEmitter tests and Makefile
+
+Apply `napi-go-eventemitter-tests-makefile.patch` after
+`napi-go-class-threadsafe.patch`. It adds an executable EventEmitter example,
+a Makefile and eight event tests on top of the original 17 cases (25 total).
+The production Class/ThreadsafeFunction implementation is unchanged.
+
+The event suite checks progress/completion after start returns, concurrent
+producer order, bound `emit` with multiple arguments and the correct `this`,
+empty completion, background error delivery, cancellation, validation and the
+owning Worker environment. It uses real goroutines and a bounded native queue.
+
+`make test-race` passes `-race` to the nested addon build, rather than only
+instrumenting the outer Go test. `GO` and `NODE` overrides also propagate to
+that test's child processes. The Makefile preserves existing compiler flags,
+accepts a Node headers include root, and `make clean` removes only known outputs.
+
+Validation for the incremental:
+
+```sh
+make check examples
+make test-js
+make test-eventemitter
+node internal/examples/eventemitter/index.cjs
+git apply --check napi-go-eventemitter-tests-makefile.patch
+```
+
+The same Go/Node/headers toolchain was used, with explicit `GO` and
+`NODE_INCLUDE` overrides. The existing limitations of `vet` and the execution
+environment's ThreadSanitizer still apply.

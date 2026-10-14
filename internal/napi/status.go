@@ -27,6 +27,19 @@ func (err StatusError) Error() string {
 	return fmt.Sprintf("napi_status error: %s\n\n%s", Status(err.Status), string(err.buff))
 }
 
+// Is compares Node-API status codes independently of their stack traces.
+// StatusError contains a slice, so errors.Is cannot compare two values with ==.
+func (err StatusError) Is(target error) bool {
+	switch target := target.(type) {
+	case StatusError:
+		return err.Status == target.Status
+	case *StatusError:
+		return target != nil && err.Status == target.Status
+	default:
+		return false
+	}
+}
+
 // Integral status code indicating the success or failure of a Node-API call.
 // Currently, the following status codes are supported.
 type Status int
@@ -77,7 +90,7 @@ func (s Status) ToError() error {
 	if s == StatusOK {
 		return nil
 	}
-	var buff [4096]byte
+	var buff [16384]byte
 	n := runtime.Stack(buff[:], false)
 	return StatusError{s, buff[:n]}
 }

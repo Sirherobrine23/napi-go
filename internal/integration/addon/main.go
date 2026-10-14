@@ -81,6 +81,7 @@ func createFn(env napi.EnvType, js any, callback napi.ThreadsafeFunctionCallJSCa
 
 //go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func Register(env napi.EnvType, export *napi.Object) {
+	registerEvents(env, export)
 	class := counterClass(env)
 	export.Set("Counter", class)
 	export.Set("zero", must(class.New()))
@@ -91,6 +92,7 @@ func Register(env napi.EnvType, export *napi.Object) {
 			panic(err)
 		}
 	}
+	registerStatusErrors(env, export)
 	bind("makeClass", func(ci *napi.CallbackInfo) (napi.ValueType, error) { return counterClass(ci.Env), nil })
 	bind("detach", func(ci *napi.CallbackInfo) (napi.ValueType, error) {
 		data := must(napi.ToObject(ci.Args[0]).RemoveWrap()).(*counter)

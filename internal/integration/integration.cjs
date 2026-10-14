@@ -5,6 +5,10 @@ const { Worker } = require('node:worker_threads');
 const { spawnSync } = require('node:child_process');
 const addon = require(process.env.NAPI_GO_ADDON);
 
+test('status errors match by code through stack traces and wrapped errors', () => {
+  assert.equal(addon.statusErrors(), undefined);
+});
+
 async function until(check) {
   for (let i = 0; i < 200; i++) {
     if (check()) return;
