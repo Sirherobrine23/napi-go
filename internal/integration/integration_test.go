@@ -36,7 +36,7 @@ func TestNodeAPI(t *testing.T) {
 	}
 	nodeCtx, nodeCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer nodeCancel()
-	cmd = exec.CommandContext(nodeCtx, node, "--expose-gc", "--test", "integration.cjs", "eventemitter.cjs")
+	cmd = exec.CommandContext(nodeCtx, node, "--expose-gc", "--test", "integration.cjs", "eventemitter.cjs", "eventemitter_thread.cjs")
 	cmd.Env = append(os.Environ(), "NAPI_GO_ADDON="+addon)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("Node-API integration: %v\n%s", err, out)

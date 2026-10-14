@@ -2,7 +2,7 @@
 
 A Go library for building Node.js Native Addons using Node-API.
 
->[!IMPORTANT]
+> [!IMPORTANT]
 >
 > This module require [`CGO`](https://pkg.go.dev/cmd/cgo), to cross-compile check cgo documentation.
 >
@@ -254,11 +254,11 @@ TSFN queue. JavaScript relays packets to an `EventEmitter` on its owning Node
 thread. Register listeners before calling `start`:
 
 ```js
-const BackgroundTask = require('./internal/examples/eventemitter/index.cjs');
+const BackgroundTask = require("./internal/examples/eventemitter/index.cjs");
 const task = new BackgroundTask();
-task.on('progress', data => console.log(data));
-task.once('done', result => console.log(result));
-task.on('error', error => console.error(error));
+task.on("progress", (data) => console.log(data));
+task.once("done", (result) => console.log(result));
+task.on("error", (error) => console.error(error));
 task.start(10);
 ```
 
@@ -302,3 +302,90 @@ suites instead of returning a cached result. For example, use
 Missing Node is reported as a failed check. `make vet` stays separate because
 of the preexisting raw-finalizer warnings described in
 [the validation report](docs/class-threadsafe-validation.md).
+
+## Native EventEmitterThread
+
+`nodejs/EventEmitter` now includes a native `EventEmitterThread`. Create it on
+its owning Node thread, retrieve the JavaScript emitter in that scope, and send
+Go-owned values from a goroutine. No JavaScript relay callback is required.
+
+```go
+thread, err := event.CreateEventThread(ci.Env, 64)
+if err != nil {
+    return nil, err
+}
+emitter, err := thread.Emitter(ci.Env)
+if err != nil {
+    thread.Abort()
+    return nil, err
+}
+if err := thread.Run(func(ctx context.Context, events *event.EventEmitterThread) error {
+    // Perform Go computation or I/O here; observe ctx cancellation as needed.
+    result := 42
+    return events.EmitBlocking("done", result)
+}); err != nil {
+    thread.Abort()
+    return nil, err
+}
+return emitter, nil
+```
+
+Use the existing package path with an alias such as
+`event "sirherobrine23.com.br/Sirherobrine23/napi-go/nodejs/EventEmitter"`.
+`Run` starts one processor goroutine, closes its queue when the processor returns,
+and converts returned errors or recovered panics into JavaScript `Error` objects
+on the `error` event. Register an error listener before the Node event loop starts
+delivering events. Context cancellation and native queue closure stop the task
+without generating an error event.
+
+You can also wrap a JavaScript-provided emitter with
+`event.ToEventEmitter(value).Thread(queueSize)`, or use `go func()` yourself and
+call `Close` when all your producers finish. `Run` must wait for any child
+producers it launches before returning. It cannot forcibly stop Go computation.
+
+| Method                                     | Execution context                   | Behavior                                                        |
+| ------------------------------------------ | ----------------------------------- | --------------------------------------------------------------- |
+| `CreateEventThread`, `EventEmitter.Thread` | Owning Node thread                  | Create the emitter or wrap one, then create its queue           |
+| `Emitter(env)`                             | Owning Node thread                  | Resolve a fresh JavaScript handle in the current callback scope |
+| `Emit(name, args...)`                      | Go goroutines or owning Node thread | Enqueue without waiting; report queue-full/closing errors       |
+| `EmitBlocking(name, args...)`              | Background Go goroutines            | Wait for bounded queue space                                    |
+| `Run(processor)`                           | Go or owning Node thread            | Start one background processor and close on completion          |
+| `Close()`                                  | Go or owning Node thread            | Cancel the processor context and drain accepted events          |
+| `Abort()`                                  | Go or owning Node thread            | Cancel the processor context and discard pending events         |
+| `Done()`                                   | Wait only in background Go code     | Signal native finalization and reference cleanup                |
+| `Ref(env)`, `Unref(env)`                   | Owning Node thread                  | Control whether the queue keeps the event loop alive            |
+
+`Emit` returns queue acceptance, not the synchronous boolean of JavaScript's
+`emitter.emit`. The queue preserves enqueue order. With several producers their
+events can interleave; each producer's sequential calls retain their order.
+`Close` and `Abort` are idempotent; the first call selects the shutdown mode.
+The emitter remains available to JavaScript after queue closure if JS retains it,
+but `thread.Emitter` fails once native finalization removed its reference.
+
+Keep payloads immutable until delivered (or until `Done`). Arguments are copied
+as a slice, but their maps, pointers and nested containers are not deep-copied.
+Scoped Node `ValueType` handles are rejected, including inside Go containers.
+Cycles and payloads nested more than 64 levels are rejected before queuing.
+Go `error` arguments become JavaScript `Error` objects on the Node thread.
+
+The queue owns a persistent emitter reference and a bound `emit` callback,
+released on native finalization or environment teardown. It is a native resource
+and does not implement `ValueType`; export the scoped result of `Emitter(env)`.
+The ordinary `EventEmitter` wrapper remains synchronous and requires the Node
+thread; its constructor, event-name forwarding and method receivers are fixed.
+
+The default constructor uses `process.getBuiltinModule` (Node 20.16+ / 22.3+),
+which works in CommonJS, ESM and Workers without a global `require`. Older hosts
+can supply a global `require` or pass an existing emitter to `.Thread`.
+This uses `require.Builtin`; the generic asynchronous `require.Import` API is
+not part of this event queue implementation.
+
+```sh
+make examples
+node internal/examples/events_thread/index.cjs
+make test-eventemitter-thread
+make check
+```
+
+The [native example](internal/examples/events_thread/main.go) returns a real
+EventEmitter with `progress`, `done`, `error` and a JavaScript `cancel()` method.

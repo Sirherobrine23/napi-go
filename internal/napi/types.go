@@ -35,7 +35,7 @@ func CreateReference(env Env, value Value, initialRefcount int) (Reference, Stat
 func DeleteReference(env Env, ref Reference) Status {
 	return Status(C.napi_delete_reference(
 		C.napi_env(env),
-		C.napi_ref(unsafe.Pointer(&ref)),
+		C.napi_ref(ref.Ref),
 	))
 }
 
@@ -43,7 +43,7 @@ func ReferenceRef(env Env, ref Reference) (int, Status) {
 	var result C.uint32_t
 	status := Status(C.napi_reference_ref(
 		C.napi_env(env),
-		C.napi_ref(unsafe.Pointer(&ref)),
+		C.napi_ref(ref.Ref),
 		&result,
 	))
 	return int(result), status
@@ -63,7 +63,7 @@ func GetReferenceValue(env Env, ref Reference) (Value, Status) {
 	var result Value
 	status := Status(C.napi_get_reference_value(
 		C.napi_env(env),
-		C.napi_ref(unsafe.Pointer(&ref)),
+		C.napi_ref(ref.Ref),
 		(*C.napi_value)(unsafe.Pointer(&result)),
 	))
 	return result, status

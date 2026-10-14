@@ -12,7 +12,7 @@ import (
 var _ napi.ValueType = (*EventEmitter)(nil)
 
 func CreateEvent(env napi.EnvType) (*EventEmitter, error) {
-	events, err := require.Module(env, "node:events")
+	events, err := require.Builtin(env, "node:events")
 	if err != nil {
 		return nil, fmt.Errorf("cannot get event module: %w", err)
 	}
@@ -20,8 +20,7 @@ func CreateEvent(env napi.EnvType) (*EventEmitter, error) {
 	if err != nil {
 		return nil, err
 	}
-	ns := napi.ToObject(jsEventEmitter)
-	newClass, err := napi.ToFunction(ns.MustGet("contructor")).Call()
+	newClass, err := napi.ToClass(jsEventEmitter).New()
 	if err != nil {
 		return nil, err
 	}
@@ -43,11 +42,12 @@ func (eve *EventEmitter) NapiValue() internalnapi.Value { return eve.valueOf.Nap
 func (eve *EventEmitter) NapiEnv() internalnapi.Env     { return eve.env.NapiValue() }
 
 func (eve *EventEmitter) Emit(eventName string, values ...napi.ValueType) (bool, error) {
-	valueOf, err := eve.valueOf.Get("emit")
+	name, err := napi.CreateString(eve.env, eventName)
 	if err != nil {
 		return false, err
 	}
-	n1, err := napi.ToFunction(valueOf).Call(values...)
+	args := append([]napi.ValueType{name}, values...)
+	n1, err := eve.call("emit", args...)
 	if err != nil {
 		return false, err
 	}
@@ -59,11 +59,7 @@ func (eve *EventEmitter) Once(eventName string, callback *napi.Function) error {
 	if err != nil {
 		return err
 	}
-	valueOf, err := eve.valueOf.Get("once")
-	if err != nil {
-		return err
-	}
-	_, err = napi.ToFunction(valueOf).Call(str, callback)
+	_, err = eve.call("once", str, callback)
 	return err
 }
 
@@ -72,11 +68,7 @@ func (eve *EventEmitter) On(eventName string, callback *napi.Function) error {
 	if err != nil {
 		return err
 	}
-	valueOf, err := eve.valueOf.Get("on")
-	if err != nil {
-		return err
-	}
-	_, err = napi.ToFunction(valueOf).Call(str, callback)
+	_, err = eve.call("on", str, callback)
 	return err
 }
 
@@ -85,11 +77,7 @@ func (eve *EventEmitter) PrependOnceListener(eventName string, callback *napi.Fu
 	if err != nil {
 		return err
 	}
-	valueOf, err := eve.valueOf.Get("prependOnceListener")
-	if err != nil {
-		return err
-	}
-	_, err = napi.ToFunction(valueOf).Call(str, callback)
+	_, err = eve.call("prependOnceListener", str, callback)
 	return err
 }
 
@@ -98,22 +86,17 @@ func (eve *EventEmitter) PrependListener(eventName string, callback *napi.Functi
 	if err != nil {
 		return err
 	}
-	valueOf, err := eve.valueOf.Get("prependListener")
-	if err != nil {
-		return err
-	}
-	_, err = napi.ToFunction(valueOf).Call(str, callback)
+	_, err = eve.call("prependListener", str, callback)
 	return err
 }
 
-func (eve *EventEmitter) EventNames(eventName string) (names []*napi.String, err error) {
+func (eve *EventEmitter) EventNames(_ ...string) (names []*napi.String, err error) {
 	fn, err := eve.valueOf.Get("eventNames")
 	if err != nil {
 		return
 	}
 
-	str, _ := napi.CreateString(eve.env, eventName)
-	array, err := napi.ToFunction(fn).Call(str)
+	array, err := napi.ToFunction(fn).CallWithGlobal(eve.valueOf)
 	if err != nil {
 		return
 	}
@@ -142,18 +125,21 @@ func (eve *EventEmitter) RemoveListener(eventName string, callback *napi.Functio
 		return
 	}
 	str, _ := napi.CreateString(eve.env, eventName)
-	_, err = napi.ToFunction(fn).Call(str, callback)
+	_, err = napi.ToFunction(fn).CallWithGlobal(eve.valueOf, str, callback)
 	return
 }
 
-func (eve *EventEmitter) RemoveAllListeners(eventName string) (err error) {
-	fn, err := eve.valueOf.Get("removeAllListeners")
-	if err != nil {
-		return
+func (eve *EventEmitter) RemoveAllListeners(eventName ...string) error {
+	var args []napi.ValueType
+	for _, name := range eventName {
+		value, err := napi.CreateString(eve.env, name)
+		if err != nil {
+			return err
+		}
+		args = append(args, value)
 	}
-	str, _ := napi.CreateString(eve.env, eventName)
-	_, err = napi.ToFunction(fn).Call(str)
-	return
+	_, err := eve.call("removeAllListeners", args...)
+	return err
 }
 
 func (eve *EventEmitter) GetMaxListeners() (max int64, err error) {
@@ -161,7 +147,7 @@ func (eve *EventEmitter) GetMaxListeners() (max int64, err error) {
 	if err != nil {
 		return
 	}
-	numbers, err := napi.ToFunction(fn).Call()
+	numbers, err := napi.ToFunction(fn).CallWithGlobal(eve.valueOf)
 	if err == nil {
 		max, err = napi.ToNumber(numbers).Int()
 	}
@@ -174,7 +160,7 @@ func (eve *EventEmitter) SetMaxListeners(size int64) (err error) {
 		return
 	}
 	v, _ := napi.CreateNumber(eve.env, size)
-	_, err = napi.ToFunction(fn).Call(v)
+	_, err = napi.ToFunction(fn).CallWithGlobal(eve.valueOf, v)
 	return
 }
 
@@ -188,9 +174,9 @@ func (eve *EventEmitter) ListenerCount(eventName string, callback ...*napi.Funct
 
 	str, _ := napi.CreateString(eve.env, eventName)
 	if len(callback) == 1 {
-		res, err = napi.ToFunction(fn).Call(str, callback[0])
+		res, err = napi.ToFunction(fn).CallWithGlobal(eve.valueOf, str, callback[0])
 	} else {
-		res, err = napi.ToFunction(fn).Call(str)
+		res, err = napi.ToFunction(fn).CallWithGlobal(eve.valueOf, str)
 	}
 	if err == nil {
 		count, err = napi.ToNumber(res).Int()
@@ -205,7 +191,7 @@ func (eve *EventEmitter) Listeners(eventName string) (callbacks []*napi.Function
 	}
 
 	str, _ := napi.CreateString(eve.env, eventName)
-	array, err := napi.ToFunction(fn).Call(str)
+	array, err := napi.ToFunction(fn).CallWithGlobal(eve.valueOf, str)
 	if err != nil {
 		return
 	}
@@ -226,4 +212,18 @@ func (eve *EventEmitter) Listeners(eventName string) (callbacks []*napi.Function
 	}
 
 	return
+}
+
+// ToEventEmitter wraps an existing JavaScript EventEmitter in its current scope.
+// All methods on EventEmitter must be called on the owning Node thread.
+func ToEventEmitter(value napi.ValueType) *EventEmitter {
+	return &EventEmitter{env: value.Env(), valueOf: napi.ToObject(value)}
+}
+
+func (eve *EventEmitter) call(method string, args ...napi.ValueType) (napi.ValueType, error) {
+	fn, err := eve.valueOf.Get(method)
+	if err != nil {
+		return nil, err
+	}
+	return napi.ToFunction(fn).CallWithGlobal(eve.valueOf, args...)
 }

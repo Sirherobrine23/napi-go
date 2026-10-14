@@ -93,6 +93,7 @@ func Register(env napi.EnvType, export *napi.Object) {
 		}
 	}
 	registerStatusErrors(env, export)
+	registerEventThreads(env, export)
 	bind("makeClass", func(ci *napi.CallbackInfo) (napi.ValueType, error) { return counterClass(ci.Env), nil })
 	bind("detach", func(ci *napi.CallbackInfo) (napi.ValueType, error) {
 		data := must(napi.ToObject(ci.Args[0]).RemoveWrap()).(*counter)

@@ -15,12 +15,12 @@ endif
 export NAPI_GO_GO := $(GO)
 export NAPI_GO_NODE := $(NODE)
 
-EXAMPLES := class threadsafe eventemitter
+EXAMPLES := class threadsafe eventemitter events events_thread
 EXAMPLE_ADDONS := $(addprefix $(BUILD_DIR)/,$(addsuffix .node,$(EXAMPLES)))
-JS_TESTS := internal/integration/integration.cjs internal/integration/eventemitter.cjs
+JS_TESTS := internal/integration/integration.cjs internal/integration/eventemitter.cjs internal/integration/eventemitter_thread.cjs
 
 .DEFAULT_GOAL := build
-.PHONY: all build examples test test-integration test-eventemitter test-js
+.PHONY: all build examples test test-integration test-eventemitter test-eventemitter-thread test-js
 .PHONY: test-cgo-check test-race check fmt vet clean help FORCE check-node build-dir
 
 all: build
@@ -55,6 +55,10 @@ test-eventemitter: check-node $(BUILD_DIR)/integration.node
 	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
 		"$(NODE)" --expose-gc --test internal/integration/eventemitter.cjs
 
+test-eventemitter-thread: check-node $(BUILD_DIR)/integration.node
+	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
+		"$(NODE)" --expose-gc --test internal/integration/eventemitter_thread.cjs
+
 test-js: check-node $(BUILD_DIR)/integration.node
 	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
 		"$(NODE)" --expose-gc --test $(JS_TESTS)
@@ -83,11 +87,12 @@ clean:
 help:
 	@printf '%s\n' \
 		'build               Compile all Go packages (default)' \
-		'examples            Build class, threadsafe and eventemitter addons' \
-		'test                Run all Go tests and both Node integration suites' \
-		'test-integration    Run both Node suites through the Go test runner' \
+		'examples            Build all included example addons' \
+		'test                Run all Go tests and Node integration suites' \
+		'test-integration    Run Node suites through the Go test runner' \
 		'test-eventemitter   Run only the EventEmitter suite' \
-		'test-js             Build an addon and run both Node suites directly' \
+		'test-eventemitter-thread  Run the native EventEmitterThread suite' \
+		'test-js             Build an addon and run Node suites directly' \
 		'test-cgo-check      Run integration with GOEXPERIMENT=cgocheck2' \
 		'test-race           Build the addon with -race and run integration' \
 		'check               Build, test and strict cgo validation' \
