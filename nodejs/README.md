@@ -31,18 +31,18 @@ if err != nil {
 return napi.ValueOf(ci.Env, joined)
 ```
 
-| Method/helper | Use |
-| --- | --- |
-| `nodejs.Load(env, id)` | Load any available builtin, including submodules such as `node:fs/promises` |
-| `nodejs.Wrap(value, id)` | Bind an already loaded JS object/namespace in its current scope |
-| `module.Call(name, args...)` | Invoke a method with Go values and the module as `this` |
-| `module.CallInto(name, &result, args...)` / `nodejs.CallAs[T](module, name, args...)` | Invoke and decode a typed result |
-| `module.Get`, `GetInto`, `SetValue` | Access properties/constants using the embedded Object helpers |
-| `module.New(name, args...)` | Construct an exported JS class with Go values |
-| `module.CallPromise(name, args...)` | Invoke and check a genuine JS Promise result |
-| `nodejs.CallbackOf(env, function)` | Adapt a Go function/Callback or validate an existing JS function |
-| `nodejs.Binary(env, input)` | Copy Go `[]byte` to Buffer; preserve normal conversion for other inputs |
-| `nodejs.CopyBytes(value)` | Copy a native Buffer into Go-owned memory on the Node thread |
+| Method/helper                                                                         | Use                                                                         |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `nodejs.Load(env, id)`                                                                | Load any available builtin, including submodules such as `node:fs/promises` |
+| `nodejs.Wrap(value, id)`                                                              | Bind an already loaded JS object/namespace in its current scope             |
+| `module.Call(name, args...)`                                                          | Invoke a method with Go values and the module as `this`                     |
+| `module.CallInto(name, &result, args...)` / `nodejs.CallAs[T](module, name, args...)` | Invoke and decode a typed result                                            |
+| `module.Get`, `GetInto`, `SetValue`                                                   | Access properties/constants using the embedded Object helpers               |
+| `module.New(name, args...)`                                                           | Construct an exported JS class with Go values                               |
+| `module.CallPromise(name, args...)`                                                   | Invoke and check a genuine JS Promise result                                |
+| `nodejs.CallbackOf(env, function)`                                                    | Adapt a Go function/Callback or validate an existing JS function            |
+| `nodejs.Binary(env, input)`                                                           | Copy Go `[]byte` to Buffer; preserve normal conversion for other inputs     |
+| `nodejs.CopyBytes(value)`                                                             | Copy a native Buffer into Go-owned memory on the Node thread                |
 
 `Load` is restricted to builtins. It does not import npm packages or await dynamic
 ESM imports. The generic API can load modules such as `node:http`, `node:net`,
@@ -51,20 +51,20 @@ Their availability and operation still follow the running Node version and host.
 
 ## Typed packages
 
-| Package | Implemented conveniences |
-| --- | --- |
-| [`path`](path/path.go) | Join, resolve, normalize, parse/format, basename/dirname/extname, relative/isAbsolute, POSIX/Windows variants, separators |
-| [`os`](os/os.go) | Architecture/platform/hostname, OS type/release, home/temp directories, CPU/user/network information, memory, uptime/load, parallelism |
-| [`fs`](fs/fs.go) | Sync binary/text reads, write/append, exists/readdir/stat, mkdir/temp directory, rename/unlink/rm; async read/write/stat/mkdir/readdir/rm via `LoadPromises` |
-| [`buffer`](buffer/buffer.go) | Buffer.from/alloc/concat/compare/isBuffer/byteLength, encodings and copies |
-| [`crypto`](crypto/crypto.go) | Native Hash/Hmac update/digest, algorithms, random bytes/UUID and timingSafeEqual |
-| [`url`](url/url.go) | Native URL/URLSearchParams construction, URL properties, search parameter mutation/query, file URLs, domain ASCII/Unicode |
-| [`util`](util/util.go) | Format/inspect, deep strict equality, promisify/callbackify |
-| [`zlib`](zlib/zlib.go) | Sync gzip, deflate, raw deflate, Brotli compression/decompression and unzip |
-| [`timers`](timers/timers.go) | Timeout/interval/immediate, clear, ref/unref/hasRef/refresh; Promise timeout/immediate via `LoadPromises` |
-| [`stream`](stream/stream.go) | PassThrough, Readable.from, write/read/end/pipe/destroy, on/once and EventEmitter access |
-| [`dns`](dns/dns.go) | Promise lookup/resolve/resolve4/resolve6/reverse using `node:dns/promises` |
-| [`EventEmitter`](EventEmitter/values.go) | Additional `EmitValues`, `OnFunc`, `OnceFunc` conveniences; background queue remains `EventEmitterThread` |
+| Package                                  | Implemented conveniences                                                                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`path`](path/path.go)                   | Join, resolve, normalize, parse/format, basename/dirname/extname, relative/isAbsolute, POSIX/Windows variants, separators                                    |
+| [`os`](os/os.go)                         | Architecture/platform/hostname, OS type/release, home/temp directories, CPU/user/network information, memory, uptime/load, parallelism                       |
+| [`fs`](fs/fs.go)                         | Sync binary/text reads, write/append, exists/readdir/stat, mkdir/temp directory, rename/unlink/rm; async read/write/stat/mkdir/readdir/rm via `LoadPromises` |
+| [`buffer`](buffer/buffer.go)             | Buffer.from/alloc/concat/compare/isBuffer/byteLength, encodings and copies                                                                                   |
+| [`crypto`](crypto/crypto.go)             | Native Hash/Hmac update/digest, algorithms, random bytes/UUID and timingSafeEqual                                                                            |
+| [`url`](url/url.go)                      | Native URL/URLSearchParams construction, URL properties, search parameter mutation/query, file URLs, domain ASCII/Unicode                                    |
+| [`util`](util/util.go)                   | Format/inspect, deep strict equality, promisify/callbackify                                                                                                  |
+| [`zlib`](zlib/zlib.go)                   | Sync gzip, deflate, raw deflate, Brotli compression/decompression and unzip                                                                                  |
+| [`timers`](timers/timers.go)             | Timeout/interval/immediate, clear, ref/unref/hasRef/refresh; Promise timeout/immediate via `LoadPromises`                                                    |
+| [`stream`](stream/README.md)             | Native stream methods, Go io.Reader/Writer/ReadWriter adapters, and Promise CopyTo/CopyFrom pipelines                                                        |
+| [`dns`](dns/dns.go)                      | Promise lookup/resolve/resolve4/resolve6/reverse using `node:dns/promises`                                                                                   |
+| [`EventEmitter`](EventEmitter/values.go) | Additional `EmitValues`, `OnFunc`, `OnceFunc` conveniences; background queue remains `EventEmitterThread`                                                    |
 
 These are conveniences over stable/common operations, rather than a complete
 typed mirror of every Node export. Options accept ordinary Go maps/structs or
@@ -72,6 +72,10 @@ existing JS values. Use the common interface for additional options, methods,
 constructors or version-specific features.
 
 ## Asynchronous work
+
+The [Go io bridge](stream/README.md) also runs Read/Write/Close in Go goroutines
+while preserving native Node stream backpressure and lifetime. Existing streams
+can pipe to/from Go I/O through `CopyTo`/`CopyFrom`, returning JS Promises.
 
 `nodejs.Promise` wraps a JS-owned Promise and deliberately has no `napi_deferred`
 or Resolve/Reject methods. It can be returned directly to JS for `await`, or

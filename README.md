@@ -269,6 +269,12 @@ node internal/examples/nodejs/index.cjs
 make test-nodejs
 ```
 
+Go `io.Reader`, `io.Writer` and `io.ReadWriter` can back native streams through
+[`nodejs/stream`](nodejs/stream/README.md). I/O executes in Go goroutines, with
+TSFN delivery and Node backpressure. Existing Node streams also expose
+`CopyTo`/`CopyFrom` Promise pipelines. Run `make test-stream-io` or
+`node internal/examples/stream_io/index.cjs` after `make examples`.
+
 ## Classes
 
 Use `CreateClass(env, name, constructor, properties...)` to define a native

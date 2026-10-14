@@ -81,6 +81,7 @@ func createFn(env napi.EnvType, js any, callback napi.ThreadsafeFunctionCallJSCa
 
 //go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func Register(env napi.EnvType, export *napi.Object) {
+	registerStreamIO(env, export)
 	registerBuiltins(env, export)
 	registerObjects(env, export)
 	registerEvents(env, export)

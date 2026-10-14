@@ -15,14 +15,14 @@ endif
 export NAPI_GO_GO := $(GO)
 export NAPI_GO_NODE := $(NODE)
 
-EXAMPLES := class threadsafe eventemitter events events_thread objects nodejs
+EXAMPLES := class threadsafe eventemitter events events_thread objects nodejs stream_io
 EXAMPLE_ADDONS := $(addprefix $(BUILD_DIR)/,$(addsuffix .node,$(EXAMPLES)))
-JS_TESTS := internal/integration/integration.cjs internal/integration/eventemitter.cjs internal/integration/eventemitter_thread.cjs internal/integration/objects.cjs internal/integration/builtins.cjs
+JS_TESTS := internal/integration/integration.cjs internal/integration/eventemitter.cjs internal/integration/eventemitter_thread.cjs internal/integration/objects.cjs internal/integration/builtins.cjs internal/integration/stream_io.cjs
 
 .DEFAULT_GOAL := build
 .PHONY: all build examples test test-integration test-eventemitter test-eventemitter-thread test-js
 .PHONY: test-cgo-check test-race check fmt vet clean help FORCE check-node build-dir
-.PHONY: test-objects test-nodejs
+.PHONY: test-objects test-nodejs test-stream-io
 
 all: build
 
@@ -68,6 +68,10 @@ test-nodejs: check-node $(BUILD_DIR)/integration.node
 	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
 		"$(NODE)" --expose-gc --test internal/integration/builtins.cjs
 
+test-stream-io: check-node $(BUILD_DIR)/integration.node
+	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
+		"$(NODE)" --expose-gc --test internal/integration/stream_io.cjs
+
 test-js: check-node $(BUILD_DIR)/integration.node
 	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
 		"$(NODE)" --expose-gc --test $(JS_TESTS)
@@ -103,6 +107,7 @@ help:
 		'test-eventemitter-thread  Run the native EventEmitterThread suite' \
 		'test-objects        Run the object and Go conversion suite' \
 		'test-nodejs         Run the builtin Node.js module wrappers suite' \
+		'test-stream-io      Run the Go io / Node stream adapters suite' \
 		'test-js             Build an addon and run Node suites directly' \
 		'test-cgo-check      Run integration with GOEXPERIMENT=cgocheck2' \
 		'test-race           Build the addon with -race and run integration' \
