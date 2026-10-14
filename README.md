@@ -145,6 +145,110 @@ They are the:
 - [ ] Function
 - [x] Class (explicit constructor and wrapped Go state)
 
+## Objects with Go values
+
+The existing `CreateObject`, `Get`, `Set`, `Call` and `Class.New` APIs remain
+available. The following helpers remove the intermediate `ValueOf` calls and
+unchecked casts when working with Go data. They all require the owning Node
+thread and a live handle scope, including when called from a TSFN callback.
+
+```go
+object, err := napi.ObjectOf(env, map[string]any{
+    "name": "Gopher",
+    "count": 23,
+    "options": map[string]any{"enabled": true},
+})
+if err != nil {
+    return nil, err
+}
+if err := object.SetValue("items", []int{1, 2, 3}); err != nil {
+    return nil, err
+}
+name, err := napi.GetAs[string](object, "name")
+if err != nil {
+    return nil, err
+}
+if err := object.SetMethod("greet", func(who string) string {
+    return "Hello " + who
+}); err != nil {
+    return nil, err
+}
+result, err := object.CallMethod("greet", name) // this == object
+if err != nil {
+    return nil, err
+}
+message, err := napi.Decode[string](result)
+```
+
+| API                                                        | Purpose                                                                        |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `ObjectOf(env, value)`                                     | Convert a map/struct or wrap an existing JS object; reject primitives and null |
+| `object.SetValue(name, value)`                             | Assign one Go value or an existing `ValueType`                                 |
+| `object.Assign(map[string]any{...})`                       | Assign multiple properties in sorted key order                                 |
+| `object.GetInto(name, &target)` / `GetAs[T](object, name)` | Decode one property to a Go type or checked N-API wrapper                      |
+| `object.SetMethod(name, function)`                         | Register a `Callback` or ordinary Go function                                  |
+| `object.CallMethod(name, args...)`                         | Convert Go arguments and invoke the current method with the object as `this`   |
+| `Decode[T](value)`                                         | Decode a standalone value using `ValueFrom`                                    |
+| `ci.ArgInto(index, &target)` / `ArgAs[T](ci, index)`       | Decode an argument and report missing or incompatible values                   |
+| `function.CallValues(args...)`                             | Call with Go arguments and the global object as `this`                         |
+| `function.CallWithThis(receiver, args...)`                 | Call with Go arguments and an explicit receiver                                |
+| `class.NewValues(args...)`                                 | Construct an instance using Go arguments                                       |
+| `UnwrapAs[T](object)`                                      | Retrieve wrapped Go state with a checked type assertion                        |
+
+Use an ordinary Go function for automatic argument/result conversion. Use a
+`Callback` (or an unnamed function with the same signature) when you need the
+environment, optional arguments, or `this`:
+
+```go
+err := object.SetMethod("increment", func(ci *napi.CallbackInfo) (napi.ValueType, error) {
+    amount, err := napi.ArgAs[int](ci, 0)
+    if err != nil {
+        return nil, err
+    }
+    this := napi.ToObject(ci.This)
+    count, err := napi.GetAs[int](this, "count")
+    if err != nil {
+        return nil, err
+    }
+    if err := this.SetValue("count", count + amount); err != nil {
+        return nil, err
+    }
+    return napi.ValueOf(ci.Env, count + amount)
+})
+```
+
+Callbacks retrieve `ci.This` in their current scope; do not capture a scoped
+`Object` handle from an earlier callback. Existing handles passed to conversions,
+property assignment, calls or construction must belong to the same environment.
+Background goroutines still send Go-owned data through `EventEmitterThread` or
+a TSFN; the new object helpers do not make JavaScript handles thread-safe.
+
+Conversion follows `ValueOf` / `ValueFrom`, including `napi:"field"` struct tags.
+`int` becomes a JS Number; `int64` and `uint64` become BigInt. Bare Go `nil`, nil
+pointers and nil functions become `undefined`; an explicit `env.Null()` value
+preserves JS null. Nil maps/slices retain their existing empty-object/array
+conversion. Reading JS null/undefined into a pointer, map or slice yields nil;
+reading them into `any` yields nil. String-to-number coercion is not performed.
+Decoded wrappers and raw handles inside `any` remain scoped to the Node thread.
+Conversions have a recursion budget of 64 to report cyclic/excessively nested
+data as an error.
+
+Ordinary Go functions validate fixed argument counts and variadic minimums.
+A trailing Go error becomes a JS exception; nil errors are omitted from results.
+`SetMethod` rejects nil functions. Getter, setter, method and constructor
+exceptions propagate to JavaScript. `Assign` can leave earlier properties changed
+when a later conversion or setter fails. `SetValue` and `Assign` use the existing
+`Object.Set` / Node-API semantics: a non-writable property may ignore assignment.
+Use `DefineProperties` when you need explicit descriptor attributes.
+
+See [the objects example](internal/examples/objects/main.go):
+
+```sh
+make examples
+node internal/examples/objects/index.cjs
+make test-objects
+```
+
 ## Classes
 
 Use `CreateClass(env, name, constructor, properties...)` to define a native
@@ -276,11 +380,12 @@ empty tasks, error delivery, cancellation and Worker ownership.
 
 ```sh
 make build                 # compile all Go packages
-make examples              # build/*.node: class, threadsafe, eventemitter
+make examples              # build all included example addons
 node internal/examples/eventemitter/index.cjs
-make test                  # all packages and both Node integration suites
+make test                  # all packages and all Node integration suites
 make test-eventemitter     # only the EventEmitter tests
-make test-js               # both Node suites against build/integration.node
+make test-objects          # object helpers and Go conversion tests
+make test-js               # all Node suites against build/integration.node
 make test-cgo-check        # integration with GOEXPERIMENT=cgocheck2
 make check                 # build + test + strict cgo checks
 make test-race              # instrument the native addon with -race

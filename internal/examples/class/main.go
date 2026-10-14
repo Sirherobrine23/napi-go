@@ -14,21 +14,18 @@ func Register(env napi.EnvType, export *napi.Object) {
 	class, err := napi.CreateClass(env, "Counter", func(ci *napi.CallbackInfo) (napi.ValueType, error) {
 		state := &counter{}
 		if len(ci.Args) > 0 {
-			value, err := napi.ToNumber(ci.Args[0]).Int()
-			if err != nil {
+			if err := ci.ArgInto(0, &state.value); err != nil {
 				return nil, err
 			}
-			state.value = value
 		}
 		return nil, napi.ToObject(ci.This).Wrap(state, nil)
 	}, napi.PropertyDescriptor{
 		Utf8name: "increment", Attributes: napi.DefaultMethod,
 		Method: func(ci *napi.CallbackInfo) (napi.ValueType, error) {
-			data, err := napi.ToObject(ci.This).Unwrap()
+			state, err := napi.UnwrapAs[*counter](napi.ToObject(ci.This))
 			if err != nil {
 				return nil, err
 			}
-			state := data.(*counter)
 			state.value++
 			return napi.CreateNumber(ci.Env, state.value)
 		},

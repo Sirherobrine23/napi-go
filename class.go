@@ -74,8 +74,8 @@ func CreateClass(env EnvType, name string, constructor Callback, properties ...P
 func (class *Class) New(args ...ValueType) (*Object, error) {
 	argv := make([]napi.Value, len(args))
 	for i, arg := range args {
-		if arg == nil || arg.NapiEnv() != class.NapiEnv() {
-			return nil, fmt.Errorf("argument %d must belong to the class environment", i)
+		if err := validateValue(class.Env(), arg); err != nil {
+			return nil, fmt.Errorf("argument %d: %w", i, err)
 		}
 		argv[i] = arg.NapiValue()
 	}

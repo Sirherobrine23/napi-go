@@ -120,8 +120,14 @@ func (fn *Function) internalCall(this napi.Value, argc int, argv []napi.Value) (
 
 // Call function with custom global/this value
 func (fn *Function) CallWithGlobal(this ValueType, args ...ValueType) (ValueType, error) {
+	if err := validateValue(fn.Env(), this); err != nil {
+		return nil, fmt.Errorf("receiver: %w", err)
+	}
 	argv := make([]napi.Value, len(args))
 	for index, valueof := range args {
+		if err := validateValue(fn.Env(), valueof); err != nil {
+			return nil, fmt.Errorf("argument %d: %w", index, err)
+		}
 		argv[index] = valueof.NapiValue()
 	}
 	return fn.internalCall(this.NapiValue(), len(args), argv)

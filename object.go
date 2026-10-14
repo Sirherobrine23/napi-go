@@ -1,6 +1,7 @@
 package napi
 
 import (
+	"fmt"
 	"iter"
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go/internal/napi"
@@ -58,6 +59,9 @@ func (obj *Object) MustGet(key string) ValueType {
 
 // Gets a property.
 func (obj *Object) GetWithValue(key ValueType) (ValueType, error) {
+	if err := validateValue(obj.Env(), key); err != nil {
+		return nil, fmt.Errorf("property key: %w", err)
+	}
 	napiValue, err := mustValueErr(napi.GetProperty(obj.Env().NapiValue(), obj.NapiValue(), key.NapiValue()))
 	if err != nil {
 		return nil, err
@@ -84,6 +88,12 @@ func (obj *Object) Set(key string, value ValueType) error {
 
 // Sets a property.
 func (obj *Object) SetWithValue(key, value ValueType) error {
+	if err := validateValue(obj.Env(), key); err != nil {
+		return fmt.Errorf("property key: %w", err)
+	}
+	if err := validateValue(obj.Env(), value); err != nil {
+		return fmt.Errorf("property value: %w", err)
+	}
 	return singleMustValueErr(napi.SetProperty(obj.NapiEnv(), obj.NapiValue(), key.NapiValue(), value.NapiValue()))
 }
 

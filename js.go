@@ -22,16 +22,34 @@ func ValueOf(env EnvType, value any) (napiValue ValueType, err error) {
 // ValueFrom converts a N-API value (napiValue) to a Go value and stores the result in v.
 // The v parameter must be a pointer to the target Go variable where the converted value will be stored.
 // Returns an error if v is not a pointer or if the conversion fails.
-func ValueFrom(napiValue ValueType, v any) error {
+func ValueFrom(napiValue ValueType, v any) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			if cause, ok := recovered.(error); ok {
+				err = fmt.Errorf("decode JavaScript value: %w", cause)
+			} else {
+				err = fmt.Errorf("decode JavaScript value: %v", recovered)
+			}
+		}
+	}()
 	ptr := reflect.ValueOf(v)
-	if ptr.Kind() != reflect.Pointer {
-		return fmt.Errorf("require point to convert napi value to go value")
+	if ptr.Kind() != reflect.Pointer || ptr.IsNil() {
+		return fmt.Errorf("ValueFrom requires a non-nil pointer")
+	}
+	if nilValue(napiValue) || napiValue.NapiValue() == nil {
+		return fmt.Errorf("cannot decode a nil JavaScript value")
 	}
 	return valueFrom(napiValue, ptr.Elem())
 }
 
 // Convert go types to valid NAPI, if not conpatible return Undefined.
 func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
+	return valueOfDepth(env, ptr, 0)
+}
+
+const maxConversionDepth = 64
+
+func valueOfDepth(env EnvType, ptr reflect.Value, depth int) (napiValue ValueType, err error) {
 	defer func(err *error) {
 		if err2 := recover(); err2 != nil {
 			switch v := err2.(type) {
@@ -43,17 +61,19 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 		}
 	}(&err)
 
+	if depth > maxConversionDepth {
+		return nil, fmt.Errorf("Go value exceeds conversion depth %d (possibly cyclic)", maxConversionDepth)
+	}
 	if !ptr.IsValid() {
 		return env.Undefined()
 	}
 	ptrType := ptr.Type()
 	if ptrType.ConvertibleTo(reflect.TypeFor[ValueType]()) {
-		if ptr.IsValid() {
-			return ptr.Interface().(ValueType), nil
+		value := ptr.Interface().(ValueType)
+		if nilValue(value) {
+			return env.Undefined()
 		}
-		return nil, nil
-	} else if !ptr.IsValid() {
-		return env.Undefined()
+		return value, validateValue(env, value)
 	} else if !ptr.IsZero() && ptr.CanInterface() { // Marshalers
 		switch v := ptr.Interface().(type) {
 		case time.Time:
@@ -72,13 +92,13 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 			} else if err = json.Unmarshal(data, &pointData); err != nil {
 				return nil, err
 			}
-			return ValueOf(env, pointData)
+			return valueOfDepth(env, reflect.ValueOf(pointData), depth+1)
 		}
 	}
 
 	switch ptrType.Kind() {
 	case reflect.Pointer:
-		return valueOf(env, ptr.Elem())
+		return valueOfDepth(env, ptr.Elem(), depth+1)
 	case reflect.String:
 		return CreateString(env, ptr.String())
 	case reflect.Bool:
@@ -94,6 +114,9 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 	case reflect.Uint64:
 		return CreateBigint(env, ptr.Uint())
 	case reflect.Func:
+		if ptr.IsNil() {
+			return env.Undefined()
+		}
 		return funcOf(env, ptr)
 	case reflect.Slice, reflect.Array:
 		arr, err := CreateArray(env, ptr.Len())
@@ -101,7 +124,7 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 			return nil, err
 		}
 		for index := range ptr.Len() {
-			value, err := valueOf(env, ptr.Index(index))
+			value, err := valueOfDepth(env, ptr.Index(index), depth+1)
 			if err != nil {
 				return arr, err
 			} else if err = arr.Set(index, value); err != nil {
@@ -121,7 +144,7 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 				continue
 			}
 
-			value, err := valueOf(env, field)
+			value, err := valueOfDepth(env, field, depth+1)
 			if err != nil {
 				return obj, err
 			}
@@ -189,6 +212,9 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 					}
 				}
 			}
+			if keyNamed == "" {
+				keyNamed = fieldType.Name
+			}
 			if err = obj.Set(keyNamed, value); err != nil {
 				return obj, err
 			}
@@ -201,11 +227,11 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 			return nil, err
 		}
 		for ptrKey, ptrValue := range ptr.Seq2() {
-			key, err := valueOf(env, ptrKey)
+			key, err := valueOfDepth(env, ptrKey, depth+1)
 			if err != nil {
 				return nil, err
 			}
-			value, err := valueOf(env, ptrValue)
+			value, err := valueOfDepth(env, ptrValue, depth+1)
 			if err != nil {
 				return nil, err
 			} else if err = obj.SetWithValue(key, value); err != nil {
@@ -218,7 +244,7 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 			if ptr.IsNil() {
 				return env.Null()
 			} else if ptr.CanInterface() {
-				return valueOf(env, reflect.ValueOf(ptr.Interface()))
+				return valueOfDepth(env, ptr.Elem(), depth+1)
 			}
 		}
 	}
@@ -227,65 +253,49 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 
 // Convert javascript value to go typed value
 func valueFrom(jsValue ValueType, ptr reflect.Value) error {
+	return valueFromDepth(jsValue, ptr, 0)
+}
+
+func valueFromDepth(jsValue ValueType, ptr reflect.Value, depth int) error {
+	if depth > maxConversionDepth {
+		return fmt.Errorf("JavaScript value exceeds conversion depth %d (possibly cyclic)", maxConversionDepth)
+	}
+	if !ptr.IsValid() || !ptr.CanSet() {
+		return fmt.Errorf("decode target is not settable")
+	}
 	typeOf, err := jsValue.Type()
 	if err != nil {
 		return err
 	}
 
 	ptrType := ptr.Type()
-	if ptrType.ConvertibleTo(reflect.TypeFor[ValueType]()) {
-		switch typeOf {
-		case TypeUndefined:
-			und, err := jsValue.Env().Undefined()
-			if err != nil {
-				return err
-			}
-			ptr.Set(reflect.ValueOf(und))
-		case TypeNull:
-			null, err := jsValue.Env().Null()
-			if err != nil {
-				return err
-			}
-			ptr.Set(reflect.ValueOf(null))
-		case TypeBoolean:
-			ptr.Set(reflect.ValueOf(ToBoolean(jsValue)))
-		case TypeNumber:
-			ptr.Set(reflect.ValueOf(ToNumber(jsValue)))
-		case TypeBigInt:
-			ptr.Set(reflect.ValueOf(ToBigint(jsValue)))
-		case TypeString:
-			ptr.Set(reflect.ValueOf(ToString(jsValue)))
-		case TypeSymbol:
-			// ptr.Set(reflect.ValueOf(ToSymbol(jsValue)))
-		case TypeObject:
-			ptr.Set(reflect.ValueOf(ToObject(jsValue)))
-		case TypeFunction:
-			ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
-		case TypeExternal:
-			ptr.Set(reflect.ValueOf(ToExternal(jsValue)))
-		case TypeTypedArray:
-			ptr.Set(reflect.ValueOf(ToTypedArray(jsValue)))
-		case TypePromise:
-			// ptr.Set(reflect.ValueOf(ToPromise(jsValue)))
-		case TypeBuffer:
-			ptr.Set(reflect.ValueOf(ToBuffer(jsValue)))
-		case TypeDate:
-			ptr.Set(reflect.ValueOf(ToDate(jsValue)))
-		case TypeArray:
-			ptr.Set(reflect.ValueOf(ToArray(jsValue)))
-		case TypeArrayBuffer:
-			ptr.Set(reflect.ValueOf(ToArrayBuffer(jsValue)))
-		case TypeDataView:
-			ptr.Set(reflect.ValueOf(ToDataView(jsValue)))
-		case TypeError:
-			ptr.Set(reflect.ValueOf(ToError(jsValue)))
+	if ptrType.Implements(reflect.TypeFor[ValueType]()) {
+		wrapped := wrapDecodedValue(jsValue, typeOf)
+		if ptrType == reflect.TypeFor[*Class]() && typeOf == TypeFunction {
+			wrapped = ToClass(jsValue)
 		}
-		return nil
+		converted := reflect.ValueOf(wrapped)
+		if converted.Type().AssignableTo(ptrType) {
+			ptr.Set(converted)
+			return nil
+		}
+		if converted.Kind() == reflect.Pointer && converted.Elem().Type().AssignableTo(ptrType) {
+			ptr.Set(converted.Elem())
+			return nil
+		}
+		return fmt.Errorf("cannot decode %s as %s", typeOf, ptrType)
 	}
 
 	switch ptrType.Kind() {
 	case reflect.Pointer:
-		return valueFrom(jsValue, ptr.Elem())
+		if typeOf == TypeNull || typeOf == TypeUndefined {
+			ptr.SetZero()
+			return nil
+		}
+		if ptr.IsNil() {
+			ptr.Set(reflect.New(ptrType.Elem()))
+		}
+		return valueFromDepth(jsValue, ptr.Elem(), depth+1)
 	case reflect.Interface:
 		if !ptr.CanSet() || ptrType != reflect.TypeFor[any]() {
 			break
@@ -336,7 +346,7 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 				napiValue, err := napiArray.Get(index)
 				if err != nil {
 					return err
-				} else if err = valueFrom(napiValue, value.Index(index)); err != nil {
+				} else if err = valueFromDepth(napiValue, value.Index(index), depth+1); err != nil {
 					return err
 				}
 			}
@@ -351,15 +361,15 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 			obj := ToObject(jsValue)
 			goMap := reflect.MakeMap(reflect.MapOf(reflect.TypeFor[string](), reflect.TypeFor[any]()))
 			for keyName, value := range obj.Seq() {
-				valueOf := reflect.New(reflect.TypeFor[any]())
-				if err := valueFrom(value, valueOf); err != nil {
+				valueOf := reflect.New(reflect.TypeFor[any]()).Elem()
+				if err := valueFromDepth(value, valueOf, depth+1); err != nil {
 					return err
 				}
 				goMap.SetMapIndex(reflect.ValueOf(keyName), valueOf)
 			}
 			ptr.Set(goMap)
-		case TypeFunction:
-			ptr.Set(reflect.ValueOf(ToFunction(jsValue)))
+		default:
+			ptr.Set(reflect.ValueOf(wrapDecodedValue(jsValue, typeOf)))
 		}
 		return nil
 	case reflect.String:
@@ -370,7 +380,7 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 		if err != nil {
 			return err
 		}
-		ptr.Set(reflect.ValueOf(valueOf))
+		ptr.SetString(valueOf)
 		return nil
 	case reflect.Bool:
 		if typeOf != TypeBoolean {
@@ -380,7 +390,7 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 		if err != nil {
 			return err
 		}
-		ptr.Set(reflect.ValueOf(b))
+		ptr.SetBool(b)
 		return nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		switch typeOf {
@@ -427,8 +437,12 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 		ptr.SetFloat(f)
 		return nil
 	case reflect.Func, reflect.Chan:
-		return nil
+		return fmt.Errorf("cannot decode %s as %s", typeOf, ptrType)
 	case reflect.Slice:
+		if typeOf == TypeNull || typeOf == TypeUndefined {
+			ptr.SetZero()
+			return nil
+		}
 		if typeOf != TypeArray {
 			break
 		}
@@ -442,11 +456,19 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 			jsValue, err := jsArr.Get(index)
 			if err != nil {
 				return err
-			} else if err = valueFrom(jsValue, ptr.Index(index)); err != nil {
+			} else if err = valueFromDepth(jsValue, ptr.Index(index), depth+1); err != nil {
 				return err
 			}
 		}
+		return nil
 	case reflect.Map:
+		if typeOf == TypeNull || typeOf == TypeUndefined {
+			ptr.SetZero()
+			return nil
+		}
+		if typeOf != TypeObject {
+			break
+		}
 		// Check if key is string, bool, int*, uint*, float*, else return error
 		switch ptrType.Key().Kind() {
 		case reflect.String:
@@ -492,7 +514,7 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 			}
 
 			valueOf := reflect.New(ptrType.Elem()).Elem()
-			if err := valueFrom(value, valueOf); err != nil {
+			if err := valueFromDepth(value, valueOf, depth+1); err != nil {
 				return err
 			}
 			goMap.SetMapIndex(keySetValue, valueOf)
@@ -535,16 +557,25 @@ func valueFrom(jsValue ValueType, ptr reflect.Value) error {
 						keyName = fields[0]
 					}
 				}
-				if ok, _ := obj.Has(keyName); !ok {
-					continue
+				if keyName == "" {
+					keyName = fieldType.Name
 				}
-
-				value, _ := obj.Get(keyName)
-				valueOf := reflect.New(fieldType.Type)
-				if err := valueFrom(value, valueOf); err != nil {
+				ok, err := obj.Has(keyName)
+				if err != nil {
 					return err
 				}
-				ptr.Field(keyIndex).Set(valueOf.Elem())
+				if !ok {
+					continue
+				}
+				value, err := obj.Get(keyName)
+				if err != nil {
+					return err
+				}
+				valueOf := reflect.New(fieldType.Type).Elem()
+				if err := valueFromDepth(value, valueOf, depth+1); err != nil {
+					return err
+				}
+				ptr.Field(keyIndex).Set(valueOf)
 			}
 			return nil
 		}

@@ -19,18 +19,18 @@ func GoFuncOf(env EnvType, function any) (ValueType, error) {
 }
 
 func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
-	if ptr.Kind() != reflect.Func {
-		return nil, fmt.Errorf("return function to return napi value")
-	} else if !ptr.IsValid() {
-		return nil, fmt.Errorf("return valid reflect")
+	if !ptr.IsValid() || ptr.Kind() != reflect.Func {
+		return nil, fmt.Errorf("GoFuncOf requires a Go function")
 	} else if !ptr.CanInterface() {
 		return nil, fmt.Errorf("cannot check function type")
 	} else if ptr.IsNil() {
-		// return nil, fmt.Errorf("return function, is nil")
-		return nil, nil
+		return nil, fmt.Errorf("GoFuncOf requires a non-nil function")
 	}
 
 	funcName := strings.ReplaceAll(runtime.FuncForPC(ptr.Pointer()).Name(), ".", "_")
+	if ptr.Type().ConvertibleTo(reflect.TypeFor[Callback]()) {
+		return CreateFunction(env, funcName, ptr.Convert(reflect.TypeFor[Callback]()).Interface().(Callback))
+	}
 	switch v := ptr.Interface().(type) {
 	case Callback: // return function value
 		return CreateFunction(env, funcName, v)
@@ -39,13 +39,11 @@ func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 	default: // Convert go function to javascript function
 		return CreateFunction(env, funcName, func(ci *CallbackInfo) (ValueType, error) {
 			var goFnReturn []reflect.Value
-			in, out, veridict := ptr.Type().NumIn(), ptr.Type().NumOut(), ptr.Type().IsVariadic()
+			variadic := ptr.Type().IsVariadic()
 
 			// Check to call
 			switch {
-			case in == 0 && out == 0: // only call
-				goFnReturn = ptr.Call([]reflect.Value{})
-			case !veridict: // call same args
+			case !variadic: // call same args
 				goFnReturn = ptr.Call(goValuesInFunc(ptr, ci.Args, false))
 			default: // call with slice on end
 				goFnReturn = ptr.CallSlice(goValuesInFunc(ptr, ci.Args, true))
@@ -54,9 +52,9 @@ func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 			// Check for last element is error
 			if len(goFnReturn) > 0 {
 				lastValue := goFnReturn[len(goFnReturn)-1]
-				if lastValue.CanConvert(typeofError) {
+				if lastValue.Type().Implements(typeofError) {
 					goFnReturn = goFnReturn[:len(goFnReturn)-1] // remove last element from return
-					if !lastValue.IsNil() {                     // check if not is nil to throw error in javascript
+					if !nilValue(lastValue.Interface()) {
 						return nil, lastValue.Interface().(error)
 					}
 				}
@@ -92,8 +90,8 @@ func funcOf(env EnvType, ptr reflect.Value) (ValueType, error) {
 
 // Create call value to go function
 func goValuesInFunc(ptr reflect.Value, jsArgs []ValueType, variadic bool) (values []reflect.Value) {
-	if variadic && (ptr.Type().NumIn()-1 > 0) && ptr.Type().NumIn()-1 < len(jsArgs) {
-		panic(fmt.Errorf("require minimun %d arguments, called with %d", ptr.Type().NumIn()-1, len(jsArgs)))
+	if variadic && len(jsArgs) < ptr.Type().NumIn()-1 {
+		panic(fmt.Errorf("require minimum %d arguments, called with %d", ptr.Type().NumIn()-1, len(jsArgs)))
 	} else if !variadic && ptr.Type().NumIn() != len(jsArgs) {
 		panic(fmt.Errorf("require %d arguments, called with %d", ptr.Type().NumIn(), len(jsArgs)))
 	}
@@ -108,14 +106,7 @@ func goValuesInFunc(ptr reflect.Value, jsArgs []ValueType, variadic bool) (value
 	for index := range values {
 		// Create value to append go value
 		ptrType := ptr.Type().In(index)
-		switch ptrType.Kind() {
-		case reflect.Pointer:
-			values[index] = reflect.New(ptrType.Elem())
-		case reflect.Slice:
-			values[index] = reflect.MakeSlice(ptrType, 0, 0)
-		default:
-			values[index] = reflect.New(ptrType).Elem()
-		}
+		values[index] = reflect.New(ptrType).Elem()
 		if err := valueFrom(jsArgs[index], values[index]); err != nil {
 			panic(err)
 		}

@@ -15,13 +15,14 @@ endif
 export NAPI_GO_GO := $(GO)
 export NAPI_GO_NODE := $(NODE)
 
-EXAMPLES := class threadsafe eventemitter events events_thread
+EXAMPLES := class threadsafe eventemitter events events_thread objects
 EXAMPLE_ADDONS := $(addprefix $(BUILD_DIR)/,$(addsuffix .node,$(EXAMPLES)))
-JS_TESTS := internal/integration/integration.cjs internal/integration/eventemitter.cjs internal/integration/eventemitter_thread.cjs
+JS_TESTS := internal/integration/integration.cjs internal/integration/eventemitter.cjs internal/integration/eventemitter_thread.cjs internal/integration/objects.cjs
 
 .DEFAULT_GOAL := build
 .PHONY: all build examples test test-integration test-eventemitter test-eventemitter-thread test-js
 .PHONY: test-cgo-check test-race check fmt vet clean help FORCE check-node build-dir
+.PHONY: test-objects
 
 all: build
 
@@ -59,6 +60,10 @@ test-eventemitter-thread: check-node $(BUILD_DIR)/integration.node
 	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
 		"$(NODE)" --expose-gc --test internal/integration/eventemitter_thread.cjs
 
+test-objects: check-node $(BUILD_DIR)/integration.node
+	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
+		"$(NODE)" --expose-gc --test internal/integration/objects.cjs
+
 test-js: check-node $(BUILD_DIR)/integration.node
 	NAPI_GO_ADDON="$(abspath $(BUILD_DIR)/integration.node)" \
 		"$(NODE)" --expose-gc --test $(JS_TESTS)
@@ -92,6 +97,7 @@ help:
 		'test-integration    Run Node suites through the Go test runner' \
 		'test-eventemitter   Run only the EventEmitter suite' \
 		'test-eventemitter-thread  Run the native EventEmitterThread suite' \
+		'test-objects        Run the object and Go conversion suite' \
 		'test-js             Build an addon and run Node suites directly' \
 		'test-cgo-check      Run integration with GOEXPERIMENT=cgocheck2' \
 		'test-race           Build the addon with -race and run integration' \
