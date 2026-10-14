@@ -3,9 +3,10 @@ package napi
 /*
 #include <stdlib.h>
 #include <node/node_api.h>
+#include "managed_callbacks.h"
 
 extern void DeleteInstanceData(
-	napi_env env,
+	node_api_basic_env env,
 	void *finalize_data,
 	void *finalize_hint
 );
@@ -109,9 +110,8 @@ func InitializeInstanceData(env Env) Status {
 }
 
 //export DeleteInstanceData
-func DeleteInstanceData(env C.napi_env, finalizeData, finalizeHint unsafe.Pointer) {
-	instanceDataHandle := cgo.Handle(finalizeData)
-	instanceDataHandle.Delete()
+func DeleteInstanceData(env C.node_api_basic_env, finalizeData, finalizeHint unsafe.Pointer) {
+	deleteToken((*C.napi_go_token)(finalizeData))
 }
 
 //export DeleteCallbackData
@@ -126,7 +126,7 @@ func DeleteCallbackData(cEnv C.napi_env, finalizeData, finalizeHint unsafe.Point
 
 	instanceData, status := getInstanceData(env)
 	if status != StatusOK {
-		panic(StatusError(status))
+		panic(StatusError{status, []byte{}})
 	}
 
 	id := *(*NapiGoCallbackID)(finalizeData)
@@ -145,7 +145,7 @@ func ExecuteCallback(cEnv C.napi_env, cInfo C.napi_callback_info) C.napi_value {
 
 	instanceData, status := getInstanceData(env)
 	if status != StatusOK {
-		panic(StatusError(status))
+		panic(StatusError{status, []byte{}})
 	}
 
 	argc := C.size_t(0)
@@ -160,7 +160,7 @@ func ExecuteCallback(cEnv C.napi_env, cInfo C.napi_callback_info) C.napi_value {
 	))
 
 	if status != StatusOK {
-		panic(StatusError(status))
+		panic(StatusError{status, []byte{}})
 	}
 
 	id := *(*NapiGoCallbackID)(cData)
@@ -183,7 +183,7 @@ func ExecuteAsyncExecuteCallback(cEnv C.napi_env, cData unsafe.Pointer) {
 
 	instanceData, status := getInstanceData(env)
 	if status != StatusOK {
-		panic(StatusError(status))
+		panic(StatusError{status, []byte{}})
 	}
 
 	id := *(*NapiGoAsyncWorkID)(cData)
@@ -203,7 +203,7 @@ func ExecuteAsyncCompleteCallback(cEnv C.napi_env, cStatus C.napi_status, cData 
 
 	instanceData, status := getInstanceData(env)
 	if status != StatusOK {
-		panic(StatusError(status))
+		panic(StatusError{status, []byte{}})
 	}
 
 	id := *(*NapiGoAsyncWorkID)(cData)
@@ -218,7 +218,7 @@ func getInstanceDataHandle(env Env) (cgo.Handle, Status) {
 		return cgo.Handle(0), status
 	}
 
-	return cgo.Handle(result), status
+	return cgo.Handle((*C.napi_go_token)(result).handle), status
 }
 
 func getInstanceData(env Env) (InstanceDataProvider, Status) {
@@ -238,17 +238,26 @@ func setInstanceData(env Env, data *NapiGoInstanceData) Status {
 		return status
 	}
 
+	var oldToken unsafe.Pointer
 	if handle != 0 {
-		handle.Delete()
+		C.napi_get_instance_data(C.napi_env(env), &oldToken)
 	}
-
-	dataHandle := cgo.NewHandle(data)
-	return Status(C.napi_set_instance_data(
+	token := newToken(data)
+	if token == nil {
+		return StatusGenericFailure
+	}
+	status = Status(C.napi_set_instance_data(
 		C.napi_env(env),
-		unsafe.Pointer(dataHandle),
-		C.napi_finalize(C.DeleteInstanceData),
+		unsafe.Pointer(token),
+		C.node_api_basic_finalize(C.DeleteInstanceData),
 		nil,
 	))
+	if status != StatusOK {
+		deleteToken(token)
+	} else if oldToken != nil {
+		deleteToken((*C.napi_go_token)(oldToken))
+	}
+	return status
 }
 
 func (d *NapiGoInstanceData) GetUserData() any {

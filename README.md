@@ -25,7 +25,6 @@ import (
 
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
 	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
-	"sirherobrine23.com.br/Sirherobrine23/napi-go/js"
 )
 
 type Test struct {
@@ -64,13 +63,13 @@ func RegisterNapi(env napi.EnvType, export *napi.Object) {
 		},
 	}
 
-	napiStruct, err := js.ValueOf(env, toGoReflect)
+	napiStruct, err := napi.ValueOf(env, toGoReflect)
 	if err != nil {
 		panic(err)
 	}
 	export.Set("goStruct", napiStruct)
 
-	fnCall, err := js.GoFuncOf(env, func(call ...any) (string, error) {
+	fnCall, err := napi.GoFuncOf(env, func(call ...any) (string, error) {
 		d, err := json.MarshalIndent(call, "", "  ")
 		if err == nil {
 			println(string(d))
@@ -82,7 +81,7 @@ func RegisterNapi(env napi.EnvType, export *napi.Object) {
 	}
 	export.Set("printAny", fnCall)
 
-	fnCallStruct, err := js.GoFuncOf(env, func(call ...Test) (string, error) {
+	fnCallStruct, err := napi.GoFuncOf(env, func(call ...Test) (string, error) {
 		d, err := json.MarshalIndent(call, "", "  ")
 		if err == nil {
 			println(string(d))
@@ -126,11 +125,11 @@ They are the:
 - [x] Interface (interface if is `any` and not nil)
 - [x] Promise
   - [x] Async Worker
-  - [ ] Thread safe function
+- [x] Thread safe function (explicit native queue)
 - [x] Array buffer
 - [x] Dataview
 - [x] Typed Array
-- [ ] Class
+- [x] Class (explicit constructor and wrapped Go state)
 
 ### Convert from Javascript values to Go
 
@@ -144,4 +143,105 @@ They are the:
 - [x] Typed Array
 - [x] Dataview
 - [ ] Function
-- [ ] Class
+- [x] Class (explicit constructor and wrapped Go state)
+
+## Classes
+
+Use `CreateClass(env, name, constructor, properties...)` to define a native
+JavaScript constructor. Constructor, method, getter and setter callbacks all use
+`*CallbackInfo`. Initialize `ci.This` in the constructor and return `nil` to use
+that instance. The constructor must be invoked with `new`.
+
+`PropertyDescriptor` supports `Utf8name` or a string/symbol `Name`, `Method`,
+`Getter`, `Setter`, `Value`, and `Attributes`. Combine `Static` with the desired
+attributes to place a property on the constructor. Other properties belong to
+the prototype. Attributes default to `Default` (zero); use `DefaultMethod` for
+writable/configurable methods or `DefaultJSProperty` for ordinary data properties.
+`Object.DefineProperties` uses the same descriptors for an existing object.
+
+Attach Go state with `Object.Wrap(data, finalize)`, retrieve it with `Unwrap`,
+and transfer ownership back to Go with `RemoveWrap`. A successful removal cancels
+the finalizer. Wraps use `runtime/cgo.Handle` with C-allocated tokens and a native
+type tag; other addons' native pointers are never interpreted as Go handles.
+The finalizer runs on GC or environment teardown, must not call Node-API or
+JavaScript, and receives the Go state rather than an environment handle.
+
+`Class.New(args...)` constructs an instance from Go, including with zero args.
+`ToClass` / `As[*Class]` wrap an existing JavaScript constructor. Explicit class
+APIs work in both directions; reflection-based Go struct conversion still
+produces plain JavaScript objects and does not automatically expose Go methods.
+
+Like all `ValueType` objects, a `Class` is tied to its Node thread, environment
+and handle scope. Do not retain its raw handle across callbacks without a native
+reference. Class/descriptor callbacks are retained until their environment exits
+so that extracted methods and accessors remain valid after constructor GC.
+Wrapped instance state is independently released by GC.
+
+See [the Counter example](internal/examples/class/main.go):
+
+```sh
+go build -buildmode=c-shared -o counter.node ./internal/examples/class
+node -e 'const {Counter} = require("./counter.node"); console.log(new Counter(23).increment())'
+```
+
+## Thread-safe functions
+
+Create a `ThreadsafeFunction` on the Node thread, then send Go-owned data from
+goroutines with `Call`. `CreateThreadsafeFunction` accepts a JavaScript
+`*Function`/`ValueType`, a Go `Callback`, an unnamed function with the same callback
+signature, or `nil` when a custom `ThreadsafeFunctionCallJSCallback` is supplied.
+With a nil custom callback, Go data is converted on the Node thread and delivered
+to the JavaScript function as one argument. Nil data calls the function with no
+arguments. A custom callback receives `env`, the optional JavaScript function,
+and the original Go data; it can choose its own argument conversion.
+
+The parameter order remains:
+
+```go
+fn, err := napi.CreateThreadsafeFunction(
+    env, jsFunction, finalizeCallback, callJSCallback,
+    "resourceName", maxQueueSize, initialThreadCount, context,
+)
+```
+
+- Queue size `0` is unbounded; negative sizes and thread counts below `1` fail.
+- Each producer owns an initial acquisition or calls `Acquire` before starting,
+  then calls `Release(napi.Release)` once when finished. A release does not
+  invalidate other producers. Pending calls drain before native finalization.
+- `Call(data, napi.NonBlocking)` returns a queue-full error without taking
+  ownership of the data when the bounded queue is full. Use `errors.Is` with
+  `ErrThreadsafeFunctionQueueFull` / `ErrThreadsafeFunctionClosing`.
+- `Call(data, napi.Blocking)` waits for queue space. Use it only from background
+  goroutines; calling it on the JavaScript thread can deadlock the event loop.
+- `Release(napi.Abort)` closes the queue and wakes blocked producers. Other
+  producers must stop and release their own acquisitions (or receive the closing
+  error if native finalization already retired them). Abandoned queued data
+  is freed even when Node cannot invoke JavaScript during shutdown.
+- `Ref(env)` / `Unref(env)` control event-loop liveness. They are idempotent,
+  must run on the Node thread, and do not change producer acquisitions.
+- `GetContext` works from goroutines and fails after native finalization. The
+  optional finalizer runs once; internal handles are also freed without one.
+- Send Go-owned values, not Node `ValueType` handles (including inside containers).
+  Keep data immutable until delivery or synchronize shared access yourself.
+
+A `ThreadsafeFunction` is a native resource and no longer implements `ValueType`.
+Export a JavaScript entry function that starts work; do not export the queue itself.
+See [the goroutine example](internal/examples/threadsafe/main.go):
+
+```sh
+go build -buildmode=c-shared -o threadsafe.node ./internal/examples/threadsafe
+node -e 'require("./threadsafe.node").start(console.log)'
+```
+
+## Validation
+
+Go 1.24 or later, a C compiler, Node.js and matching Node development headers
+are required. Install your distribution's Node development package, or point
+`CGO_CFLAGS` at a directory containing `node/node_api.h`. The integration suite
+builds a real `.node` addon and exercises JavaScript, native GC and Worker teardown.
+
+```sh
+go build ./...
+go test ./...
+GOEXPERIMENT=cgocheck2 go test ./internal/integration
+```

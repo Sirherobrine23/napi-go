@@ -72,27 +72,30 @@ func initializeModule(cEnv C.napi_env, cExports C.napi_value) C.napi_value {
 	return cExports
 }
 
-// Function to register N-API module functions and other on export Object,
-// this function require use go:linkname to link register function.
-// Se https://pkg.go.dev/cmd/compile#hdr-Linkname_Directive to how link Register function.
-// If have panic in register call, throw error in javascript.
-//
-// # register example:
-//
-//	package main
-//
-//	import _ "unsafe" 																						// Require to go:linkname
-//	import _ "sirherobrine23.com.br/Sirherobrine23/napi-go/module" // Module register import
-//
-//	import "sirherobrine23.com.br/Sirherobrine23/napi-go"
-//
-//	func main() {}
-//
-//	//go:linkname register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
-//	func register(env napi.EnvType, export *napi.Object) {
-//		str, _ := napi.CreateString(env, "hello from Gopher")
-//		export.Set("msg", str)
-//	}
-//
+/*
+Function to register N-API module functions and other on export Object,
+this function require use go:linkname to link register function.
+Se https://pkg.go.dev/cmd/compile#hdr-Linkname_Directive to how link Register function.
+If have panic in register call, throw error in javascript.
+
+register example:
+	package main
+
+	// Require to go:linkname and module register import
+	import (
+		_ "unsafe"
+		_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
+
+		"sirherobrine23.com.br/Sirherobrine23/napi-go"
+	)
+
+	func main() {}
+
+	//go:linkname register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
+	func register(env napi.EnvType, export *napi.Object) {
+		str, _ := napi.CreateString(env, "hello from Gopher")
+		export.Set("msg", str)
+	}
+*/
 //go:linkname Register
 func Register(env napi.EnvType, export *napi.Object)

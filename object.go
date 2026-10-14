@@ -48,6 +48,14 @@ func (obj *Object) Get(key string) (ValueType, error) {
 	return obj.GetWithValue(keyValue)
 }
 
+func (obj *Object) MustGet(key string) ValueType {
+	keyValue, err := obj.Get(key)
+	if err != nil {
+		panic(err)
+	}
+	return keyValue
+}
+
 // Gets a property.
 func (obj *Object) GetWithValue(key ValueType) (ValueType, error) {
 	napiValue, err := mustValueErr(napi.GetProperty(obj.Env().NapiValue(), obj.NapiValue(), key.NapiValue()))
@@ -55,6 +63,14 @@ func (obj *Object) GetWithValue(key ValueType) (ValueType, error) {
 		return nil, err
 	}
 	return N_APIValue(obj.Env(), napiValue), nil
+}
+
+func (obj *Object) MustGetWithValue(key ValueType) ValueType {
+	napiValue, err := obj.GetWithValue(key)
+	if err != nil {
+		panic(err)
+	}
+	return napiValue
 }
 
 // Sets a property.

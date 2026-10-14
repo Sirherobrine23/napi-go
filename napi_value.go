@@ -239,6 +239,10 @@ func As[T ValueType](input ValueType) T {
 	case *Date, Date:
 		rawValue = &Date{value: rawValue}
 		return rawValue.(T)
+	case *Function:
+		return any(ToFunction(rawValue)).(T)
+	case *Class:
+		return any(ToClass(rawValue)).(T)
 	default:
 		return rawValue.(T)
 	}

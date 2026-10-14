@@ -5,6 +5,7 @@ import "C"
 
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 )
 
@@ -15,12 +16,15 @@ type ExtendedError struct {
 	EngineReserved  unsafe.Pointer // Opaque handle reserved for engine use only.
 }
 
-var _ error = StatusError(0)
+var _ error = StatusError{0, nil}
 
-type StatusError Status
+type StatusError struct {
+	Status
+	buff []byte
+}
 
 func (err StatusError) Error() string {
-	return fmt.Sprintf("napi_status error: %s", Status(err))
+	return fmt.Sprintf("napi_status error: %s\n\n%s", Status(err.Status), string(err.buff))
 }
 
 // Integral status code indicating the success or failure of a Node-API call.
@@ -73,7 +77,9 @@ func (s Status) ToError() error {
 	if s == StatusOK {
 		return nil
 	}
-	return StatusError(s)
+	var buff [4096]byte
+	n := runtime.Stack(buff[:], false)
+	return StatusError{s, buff[:n]}
 }
 
 func (s Status) String() string {

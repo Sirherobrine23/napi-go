@@ -43,6 +43,9 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 		}
 	}(&err)
 
+	if !ptr.IsValid() {
+		return env.Undefined()
+	}
 	ptrType := ptr.Type()
 	if ptrType.ConvertibleTo(reflect.TypeFor[ValueType]()) {
 		if ptr.IsValid() {
@@ -80,12 +83,16 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 		return CreateString(env, ptr.String())
 	case reflect.Bool:
 		return CreateBoolean(env, ptr.Bool())
-	case reflect.Int, reflect.Uint, reflect.Int32, reflect.Uint32, reflect.Float32, reflect.Int8, reflect.Uint8, reflect.Int16, reflect.Uint16:
+	case reflect.Int, reflect.Int32, reflect.Int8, reflect.Int16:
 		return CreateNumber(env, ptr.Int())
-	case reflect.Float64:
+	case reflect.Uint, reflect.Uint32, reflect.Uint8, reflect.Uint16:
+		return CreateNumber(env, ptr.Uint())
+	case reflect.Float32, reflect.Float64:
 		return CreateNumber(env, ptr.Float())
-	case reflect.Int64, reflect.Uint64:
+	case reflect.Int64:
 		return CreateBigint(env, ptr.Int())
+	case reflect.Uint64:
+		return CreateBigint(env, ptr.Uint())
 	case reflect.Func:
 		return funcOf(env, ptr)
 	case reflect.Slice, reflect.Array:

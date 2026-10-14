@@ -28,6 +28,9 @@ func (call *CallbackInfo) NewTarget() (ValueType, error) {
 	if err := status.ToError(); err != nil {
 		return nil, err
 	}
+	if v == nil {
+		return nil, nil
+	}
 	return N_APIValue(call.Env, v), nil
 }
 
@@ -40,7 +43,14 @@ func ToFunction(o ValueType) *Function { return &Function{o, nil} }
 // exceptions. If the callback returns nil, the JavaScript 'undefined' value is returned. If the callback returns a value
 // of TypeError, it is thrown as a JavaScript exception.
 func CreateFunction(env EnvType, name string, callback Callback) (*Function, error) {
-	return CreateFunctionNapi(env, name, func(napiEnv napi.Env, info napi.CallbackInfo) napi.Value {
+	if callback == nil {
+		return nil, fmt.Errorf("callback cannot be nil")
+	}
+	return CreateFunctionNapi(env, name, callbackToNapi(callback))
+}
+
+func callbackToNapi(callback Callback) napi.Callback {
+	return func(napiEnv napi.Env, info napi.CallbackInfo) napi.Value {
 		env := N_APIEnv(napiEnv)
 		cbInfo, status := napi.GetCbInfo(napiEnv, info)
 		if err := status.ToError(); err != nil {
@@ -60,7 +70,7 @@ func CreateFunction(env EnvType, name string, callback Callback) (*Function, err
 				case error:
 					ThrowError(env, "", v.Error())
 				default:
-					ThrowError(env, "", fmt.Sprintf("panic recover: %s", err))
+					ThrowError(env, "", fmt.Sprintf("panic recover: %v", err))
 				}
 			}
 		}()
@@ -81,7 +91,7 @@ func CreateFunction(env EnvType, name string, callback Callback) (*Function, err
 			}
 			return res.NapiValue()
 		}
-	})
+	}
 }
 
 // Create function from internal [napi.Callback]
@@ -110,12 +120,11 @@ func (fn *Function) internalCall(this napi.Value, argc int, argv []napi.Value) (
 
 // Call function with custom global/this value
 func (fn *Function) CallWithGlobal(this ValueType, args ...ValueType) (ValueType, error) {
-	argc := len(args)
-	argv := make([]napi.Value, argc)
-	for index := range argc {
-		argv[index] = args[index].NapiValue()
+	argv := make([]napi.Value, len(args))
+	for index, valueof := range args {
+		argv[index] = valueof.NapiValue()
 	}
-	return fn.internalCall(this.NapiValue(), argc, argv)
+	return fn.internalCall(this.NapiValue(), len(args), argv)
 }
 
 // Call function with args

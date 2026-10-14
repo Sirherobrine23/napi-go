@@ -2,45 +2,38 @@ package main
 
 import (
 	"fmt"
-	"time"
 	_ "unsafe"
 
-	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
-
 	"sirherobrine23.com.br/Sirherobrine23/napi-go"
+	_ "sirherobrine23.com.br/Sirherobrine23/napi-go/module"
 )
 
 //go:linkname Register sirherobrine23.com.br/Sirherobrine23/napi-go/module.Register
 func Register(env napi.EnvType, export *napi.Object) {
-	jsFunc := napi.Callback(func(ci *napi.CallbackInfo) (napi.ValueType, error) {
-		var waitTime = time.Second * 3
-
-		if len(ci.Args) == 1 {
-			if typof, _ := ci.Args[0].Type(); typof == napi.TypeNumber {
-				wait := napi.As[*napi.Number](ci.Args[0])
-				_waitTime, _ := wait.Int()
-				waitTime = time.Duration(_waitTime)
-			}
+	start, err := napi.CreateFunction(env, "start", func(ci *napi.CallbackInfo) (napi.ValueType, error) {
+		if len(ci.Args) != 1 {
+			return nil, fmt.Errorf("start requires a JavaScript callback")
 		}
-
-		fmt.Printf("Called JS, waiting %s\n", waitTime)
-		<-time.After(waitTime)
+		fn, err := napi.CreateThreadsafeFunction(ci.Env, ci.Args[0], nil, nil, "napi-go/example", 4, 1, nil)
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			defer fn.Release(napi.Release)
+			for i := 0; i < 10; i++ {
+				if err := fn.Call(i, napi.Blocking); err != nil {
+					return
+				}
+			}
+		}()
 		return nil, nil
 	})
-
-	jsEnd := napi.ThreadsafeFunctionFinalizeCallback(func(env napi.EnvType, context any) {
-		println("Called go func end")
-	})
-
-	callJSCallback := napi.ThreadsafeFunctionCallJSCallback(func(env napi.EnvType, jsCallback *napi.Function, data any) {
-		println("Called callJSCallback")
-	})
-
-	thr, err := napi.CreateThreadsafeFunction(env, jsFunc, jsEnd, callJSCallback, "thr", 0, 1, nil)
 	if err != nil {
 		panic(err)
 	}
-	export.Set("thr", thr)
+	if err := export.Set("start", start); err != nil {
+		panic(err)
+	}
 }
 
 func main() {}

@@ -109,12 +109,7 @@ func CreateSymbol(env Env, description Value) (Value, Status) {
 }
 
 func CreateFunction(env Env, name string, cb Callback) (Value, Status) {
-	provider, status := getInstanceData(env)
-	if status != StatusOK || provider == nil {
-		return nil, status
-	}
-
-	return provider.GetCallbackData().CreateCallback(env, name, cb)
+	return createManagedFunction(env, name, cb)
 }
 
 func CreateError(env Env, code, msg Value) (Value, Status) {
@@ -699,12 +694,7 @@ func GetPropertyNames(env Env, object Value) (Value, Status) {
 }
 
 func DefineProperties(env Env, object Value, properties []PropertyDescriptor) Status {
-	return Status(C.napi_define_properties(
-		C.napi_env(env),
-		C.napi_value(object),
-		C.size_t(len(properties)),
-		(*C.napi_property_descriptor)(unsafe.Pointer(&properties[0])),
-	))
+	return defineManagedProperties(env, object, properties)
 }
 
 func GetValueBigIntUint64(env Env, value Value) (uint64, bool, Status) {
@@ -1056,13 +1046,20 @@ func CreateStringUtf16(env Env, str []uint16) (Value, Status) {
 }
 
 func CallFunction(env Env, recv Value, fn Value, argc int, argv []Value) (Value, Status) {
+	if argc < 0 || argc > len(argv) {
+		return nil, StatusInvalidArg
+	}
+	var cArgs *C.napi_value
+	if argc > 0 {
+		cArgs = (*C.napi_value)(unsafe.Pointer(&argv[0]))
+	}
 	var result Value
 	status := Status(C.napi_call_function(
 		C.napi_env(env),
 		C.napi_value(recv),
 		C.napi_value(fn),
 		C.size_t(argc),
-		(*C.napi_value)(unsafe.Pointer(&argv[0])),
+		cArgs,
 		(*C.napi_value)(unsafe.Pointer(&result)),
 	))
 	return result, status
@@ -1079,12 +1076,19 @@ func GetNewTarget(env Env, info CallbackInfo) (Value, Status) {
 }
 
 func NewInstance(env Env, constructor Value, argc int, argv []Value) (Value, Status) {
+	if argc < 0 || argc > len(argv) {
+		return nil, StatusInvalidArg
+	}
+	var cArgs *C.napi_value
+	if argc > 0 {
+		cArgs = (*C.napi_value)(unsafe.Pointer(&argv[0]))
+	}
 	var result Value
 	status := Status(C.napi_new_instance(
 		C.napi_env(env),
 		C.napi_value(constructor),
 		C.size_t(argc),
-		(*C.napi_value)(unsafe.Pointer(&argv[0])),
+		cArgs,
 		(*C.napi_value)(unsafe.Pointer(&result)),
 	))
 	return result, status
