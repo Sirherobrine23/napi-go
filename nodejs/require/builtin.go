@@ -53,7 +53,7 @@ func Builtin(env napi.EnvType, id string) (napi.ValueType, error) {
 		return nil, err
 	}
 	if typeOf != napi.TypeFunction {
-		return nil, fmt.Errorf("loading %q requires process.getBuiltinModule or a global require; pass an existing EventEmitter instead", id)
+		return nil, fmt.Errorf("loading %q requires process.getBuiltinModule or a global require; pass an existing module object instead", id)
 	}
 	return Require(env, id)
 }

@@ -249,6 +249,26 @@ node internal/examples/objects/index.cjs
 make test-objects
 ```
 
+## Node.js builtin modules
+
+The [`nodejs` packages](nodejs/README.md) wrap the real host modules through a
+shared `Module` API and typed helpers for `path`, `os`, `fs`, `buffer`, `crypto`,
+`url`, `util`, `zlib`, `timers`, `stream` and `dns`. `fs/promises` and
+`timers/promises` return genuine JavaScript Promises with Go/JS
+`Then`/`Catch`/`Finally` callbacks. Existing EventEmitter APIs also gain
+`EmitValues`, `OnFunc` and `OnceFunc`.
+
+All wrappers require the owning Node thread and current handle scope; load them
+inside each callback. Background Go work continues to use TSFN/EventEmitterThread.
+Sync filesystem/compression calls keep their native blocking behavior. Use the
+generic `nodejs.Load(env, id)` / `Module.Call` API for additional builtin exports.
+
+```sh
+make examples
+node internal/examples/nodejs/index.cjs
+make test-nodejs
+```
+
 ## Classes
 
 Use `CreateClass(env, name, constructor, properties...)` to define a native

@@ -47,7 +47,7 @@ func valueOf(env EnvType, ptr reflect.Value) (napiValue ValueType, err error) {
 	return valueOfDepth(env, ptr, 0)
 }
 
-const maxConversionDepth = 64
+var maxConversionDepth = 256
 
 func valueOfDepth(env EnvType, ptr reflect.Value, depth int) (napiValue ValueType, err error) {
 	defer func(err *error) {

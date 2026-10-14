@@ -30,7 +30,8 @@ func (buff *Buffer) Length() (int, error) {
 	return mustValueErr(napi.GetBufferInfoSize(buff.NapiEnv(), buff.NapiValue()))
 }
 
-// return []byte from Buffer value
+// Data returns a view of Node-owned memory. Use it only on the owning Node
+// thread while the Buffer is alive; copy it before sending data to Go workers.
 func (buff *Buffer) Data() ([]byte, error) {
 	return mustValueErr(napi.GetBufferInfoData(buff.NapiEnv(), buff.NapiValue()))
 }

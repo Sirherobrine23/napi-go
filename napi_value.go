@@ -156,14 +156,14 @@ func (v *_Value) Type() (NapiType, error) {
 	}
 
 	switch {
+	case isBuffer:
+		return TypeBuffer, nil
 	case isTypedArray:
 		return TypeTypedArray, nil
 	case isPromise:
 		return TypePromise, nil
 	case isDataView:
 		return TypeDataView, nil
-	case isBuffer:
-		return TypeBuffer, nil
 	case isDate:
 		return TypeDate, nil
 	case isArray:

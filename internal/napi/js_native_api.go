@@ -457,10 +457,14 @@ func CreateBuffer(env Env, length int) (Value, Status) {
 
 func CreateBufferCopy(env Env, data []byte) (Value, Status) {
 	var result Value
+	var dataPointer unsafe.Pointer
+	if len(data) != 0 {
+		dataPointer = unsafe.Pointer(&data[0])
+	}
 	status := Status(C.napi_create_buffer_copy(
 		C.napi_env(env),
 		C.size_t(len(data)),
-		unsafe.Pointer(&data[0]),
+		dataPointer,
 		nil,
 		(*C.napi_value)(unsafe.Pointer(&result)),
 	))
@@ -471,8 +475,7 @@ func GetBufferInfo(env Env, value Value) (*byte, int, Status) {
 	var data *byte
 	var length C.size_t
 
-	dataPtr := unsafe.Pointer(&data)
-	status := Status(C.napi_get_buffer_info(C.napi_env(env), C.napi_value(value), &dataPtr, &length))
+	status := Status(C.napi_get_buffer_info(C.napi_env(env), C.napi_value(value), (*unsafe.Pointer)(unsafe.Pointer(&data)), &length))
 	return data, int(length), status
 }
 
@@ -486,8 +489,7 @@ func GetBufferInfoData(env Env, value Value) (buff []byte, status Status) {
 	var data *byte
 	var length C.size_t
 
-	dataPtr := unsafe.Pointer(&data)
-	status = Status(C.napi_get_buffer_info(C.napi_env(env), C.napi_value(value), &dataPtr, &length))
+	status = Status(C.napi_get_buffer_info(C.napi_env(env), C.napi_value(value), (*unsafe.Pointer)(unsafe.Pointer(&data)), &length))
 	if status == StatusOK {
 		buff = unsafe.Slice(data, length)
 	}
